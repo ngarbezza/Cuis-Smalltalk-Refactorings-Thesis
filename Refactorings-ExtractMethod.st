@@ -1,36 +1,102 @@
 !classDefinition: #ExtractMethodTest category: #'Refactorings-ExtractMethod'!
 RefactoringTest subclass: #ExtractMethodTest
-	instanceVariableNames: ''
+	instanceVariableNames: 'classToRefactor'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Refactorings-ExtractMethod'!
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/18/2019 15:00:57'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/20/2019 22:01:56'!
 test01NewSelectorShouldNotBeEmpty
 
-	| newSelector |
-	newSelector _ ''.
 	self
-		creationWithSelectorNamed: newSelector
+		creationWithSelectorNamed: #''
 		failsWith: NewSelectorPrecondition newSelectorCanNotBeEmptyErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/18/2019 15:00:07'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/20/2019 22:01:48'!
 test02NewSelectorShouldNotContainSeparators
 
-	| newSelector |
-	newSelector _ 'my selector'.
 	self
-		creationWithSelectorNamed: newSelector
+		creationWithSelectorNamed: #'my selector'
 		failsWith: NewSelectorPrecondition newSelectorCanNotContainSeparatorsErrorMessage! !
 
-
-!ExtractMethodTest methodsFor: 'refactor creation' stamp: 'RNG 4/18/2019 16:07:36'!
-creationWithSelectorNamed: aSelectorName failsWith: aRefactoringErrorMessage 
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/20/2019 21:35:50'!
+test03NewSelectorShouldNotBeAlreadyDefinedInTheClass
 
 	self
-		should: [ ExtractMethod toSelector: aSelectorName on: self class ]
+		creationWithSelectorNamed: #m1
+		failsWith: NewSelectorPrecondition newSelectorAlreadyDefinedOnTheClassErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/20/2019 22:01:13'!
+test04IntervalToExtractIsNotBeforeMethodSourceCodeBoundaries
+
+	| selectorToExtractCodeFrom sourceCodeToExtract sourceCode |
+	sourceCodeToExtract _ '4'.
+	selectorToExtractCodeFrom _ #m1.
+	sourceCode _ selectorToExtractCodeFrom asString , ' ^ ' , sourceCodeToExtract.
+	classToRefactor compile: sourceCode.
+
+	self
+		creationWithSelectorNamed: #m2
+		onInterval: (-1 to: 2)
+		ofMethod: classToRefactor >> selectorToExtractCodeFrom
+		failsWith: ExtractMethod outOfBoundsSelectionErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/20/2019 22:03:29'!
+test05IntervalToExtractIsNotAfterMethodSourceCodeBoundaries
+
+	| selectorToExtractCodeFrom sourceCodeToExtract sourceCode |
+	sourceCodeToExtract _ '4'.
+	selectorToExtractCodeFrom _ #m1.
+	sourceCode _ selectorToExtractCodeFrom asString , ' ^ ' , sourceCodeToExtract.
+	classToRefactor compile: sourceCode.
+
+	self
+		creationWithSelectorNamed: #m2
+		onInterval: (1 to: 12)
+		ofMethod: classToRefactor >> selectorToExtractCodeFrom
+		failsWith: ExtractMethod outOfBoundsSelectionErrorMessage! !
+
+
+!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 4/20/2019 22:01:13'!
+creationWithSelectorNamed: aSelectorName failsWith: aRefactoringErrorMessage
+
+	| selectorToExtractCodeFrom sourceCodeToExtract intervalToExtract sourceCode |
+	sourceCodeToExtract _ '4'.
+	selectorToExtractCodeFrom _ #m1.
+	sourceCode _ selectorToExtractCodeFrom asString , ' ^ ' , sourceCodeToExtract.
+	classToRefactor compile: sourceCode.
+	intervalToExtract _ sourceCode intervalOfSubCollection: sourceCodeToExtract.
+
+	self
+		creationWithSelectorNamed: aSelectorName
+		onInterval: intervalToExtract
+		ofMethod: classToRefactor >> selectorToExtractCodeFrom
+		failsWith: aRefactoringErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 4/20/2019 21:29:59'!
+creationWithSelectorNamed: aSelectorName onInterval: anIntervalToExtract ofMethod: methodToExtractCodeFrom failsWith: aRefactoringErrorMessage
+
+	self
+		should: [
+			ExtractMethod
+				fromInterval: anIntervalToExtract
+				of: methodToExtractCodeFrom
+				to: aSelectorName ]
 		raise: Error - MessageNotUnderstood
 		withMessageText: aRefactoringErrorMessage! !
+
+
+!ExtractMethodTest methodsFor: 'class factory' stamp: 'RNG 4/20/2019 21:31:05'!
+classToRefactorName
+
+	^ #ClassToExtractMethod! !
+
+
+!ExtractMethodTest methodsFor: 'set up' stamp: 'RNG 4/20/2019 22:01:13'!
+setUp
+
+	super setUp.
+	classToRefactor _ self createClassNamed: self classToRefactorName.! !
 
 
 !classDefinition: #NewSelectorPreconditionTest category: #'Refactorings-ExtractMethod'!
@@ -92,6 +158,69 @@ test05NewSelectorShouldNotExistOnTheGivenClass
 		assertPreconditionForSelector: #test05NewSelectorShouldNotExistOnTheGivenClass
 		ofClass: self class
 		failsWith: NewSelectorPrecondition newSelectorAlreadyDefinedOnTheClassErrorMessage! !
+
+
+!classDefinition: #ExtractMethod category: #'Refactorings-ExtractMethod'!
+Refactoring subclass: #ExtractMethod
+	instanceVariableNames: 'intervalToExtract sourceMethod newSelector'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'Refactorings-ExtractMethod'!
+
+!ExtractMethod methodsFor: 'initialization' stamp: 'RNG 4/20/2019 21:33:57'!
+initializeFrom: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector
+
+	intervalToExtract _ anIntervalToExtract.
+	sourceMethod _ aMethodToExtractCodeFrom.
+	newSelector _ aNewSelector
+	! !
+
+"-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- "!
+
+!classDefinition: 'ExtractMethod class' category: #'Refactorings-ExtractMethod'!
+ExtractMethod class
+	instanceVariableNames: ''!
+
+!ExtractMethod class methodsFor: 'instance creation' stamp: 'RNG 4/20/2019 21:39:04'!
+fromInterval: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector
+
+	self
+		ensure: aNewSelector canBeDefinedIn: aMethodToExtractCodeFrom methodClass;
+		ensure: anIntervalToExtract isValidIntervalOn: aMethodToExtractCodeFrom.
+
+	^ self new
+		initializeFrom: anIntervalToExtract
+		of: aMethodToExtractCodeFrom
+		to: aNewSelector! !
+
+
+!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 4/18/2019 16:08:48'!
+ensure: aSelector canBeDefinedIn: aClass 
+
+	NewSelectorPrecondition valueFor: aSelector on: aClass! !
+
+!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 4/20/2019 21:56:33'!
+ensure: anIntervalToExtract isValidIntervalOn: aMethodToExtractCodeFrom 
+
+	(self is: anIntervalToExtract withinBoundsOf: aMethodToExtractCodeFrom sourceCode) ifFalse: [ self signalOutOfBoundsIntervalError ]! !
+
+
+!ExtractMethod class methodsFor: 'error messages' stamp: 'RNG 4/20/2019 21:53:45'!
+outOfBoundsSelectionErrorMessage
+
+	^ 'The source code selection interval is out of bounds'! !
+
+
+!ExtractMethod class methodsFor: 'exceptions' stamp: 'RNG 4/20/2019 21:53:24'!
+signalOutOfBoundsIntervalError
+
+	self refactoringError: self outOfBoundsSelectionErrorMessage! !
+
+
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 4/20/2019 21:56:55'!
+is: anIntervalToExtract withinBoundsOf: aSourceCode
+
+	^ anIntervalToExtract first >= 1 and: [ anIntervalToExtract last <= aSourceCode size ]! !
 
 
 !classDefinition: #NewSelectorPrecondition category: #'Refactorings-ExtractMethod'!
@@ -214,28 +343,3 @@ for: aSelectorToValidate on: aClass
 valueFor: aSelectorToValidate on: aClass
 
 	^ (self for: aSelectorToValidate on: aClass) value! !
-
-
-!classDefinition: #ExtractMethod category: #'Refactorings-ExtractMethod'!
-Object subclass: #ExtractMethod
-	instanceVariableNames: ''
-	classVariableNames: ''
-	poolDictionaries: ''
-	category: 'Refactorings-ExtractMethod'!
-
-"-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- "!
-
-!classDefinition: 'ExtractMethod class' category: #'Refactorings-ExtractMethod'!
-ExtractMethod class
-	instanceVariableNames: ''!
-
-!ExtractMethod class methodsFor: 'instance creation' stamp: 'RNG 4/18/2019 16:08:42'!
-toSelector: newSelector on: aClass 
-
-	self ensure: newSelector canBeDefinedIn: aClass! !
-
-
-!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 4/18/2019 16:08:48'!
-ensure: aSelector canBeDefinedIn: aClass 
-
-	NewSelectorPrecondition valueFor: aSelector on: aClass! !
