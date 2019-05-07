@@ -12,13 +12,6 @@ assertClassHasDefined: newSelector withBody: newSourceCode
 		assert: (classToRefactor >> newSelector) sourceCode
 		equals: newSourceCode! !
 
-!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 4/29/2019 00:44:15'!
-assertSourceCodeOf: aSelector hasBeenUpdatedTo: aNewSourceCode
-
-	self
-		assert: aNewSourceCode
-		equals: (classToRefactor >> aSelector) sourceCode! !
-
 !ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 4/21/2019 21:54:54'!
 creationOnInterval: anIntervalToExtract failsWith: aRefactoringErrorMessage
 
@@ -101,127 +94,80 @@ setUp
 	self compileMethodWithOneLiteral.! !
 
 
-!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 4/29/2019 01:05:01'!
-test07ExtractingALiteralCreatesANewMethodAndChangesExistingCodeToCallThatNewMethod
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 5/5/2019 12:20:35'!
+test09ExtractingALiteralCreatesANewMethodAndChangesExistingCodeToCallThatNewMethod
 
 	| newSelector sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
 	newSelector _ #newMethod.
-	sourceCodeOfNewMethod _ newSelector asString , Character lf asString , Character lf asString, Character tab asString, '^ 4'.
+	sourceCodeOfNewMethod _ newSelector asString , '
+
+	^ 4'.
 	originalSelector _ self selectorOfMethodWithOneLiteral.
 	updatedSourceCodeOfOriginalMethod _ originalSelector , ' ^ self ' , newSelector asString.
 
 	self extractLiteralOn: newSelector.
 
 	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod.
-	self
-		assertSourceCodeOf: originalSelector
-		hasBeenUpdatedTo: updatedSourceCodeOfOriginalMethod! !
+	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
 
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/20/2019 22:01:56'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/4/2019 22:40:07'!
 test01NewSelectorShouldNotBeEmpty
 
 	self
 		creationWithSelectorNamed: #''
-		failsWith: NewSelectorPrecondition newSelectorCanNotBeEmptyErrorMessage! !
+		failsWith: ExtractMethodNewSelectorPrecondition newSelectorCanNotBeEmptyErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/20/2019 22:01:48'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/4/2019 22:40:07'!
 test02NewSelectorShouldNotContainSeparators
 
 	self
 		creationWithSelectorNamed: #'my selector'
-		failsWith: NewSelectorPrecondition newSelectorCanNotContainSeparatorsErrorMessage! !
+		failsWith: ExtractMethodNewSelectorPrecondition newSelectorCanNotContainSeparatorsErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/21/2019 11:18:45'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/4/2019 22:40:07'!
 test03NewSelectorShouldNotBeAlreadyDefinedInTheClass
 
 	self
 		creationWithSelectorNamed: self selectorOfMethodWithOneLiteral
-		failsWith: NewSelectorPrecondition newSelectorAlreadyDefinedOnTheClassErrorMessage! !
+		failsWith: ExtractMethodNewSelectorPrecondition newSelectorAlreadyDefinedOnTheClassErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/21/2019 21:53:17'!
-test04IntervalToExtractIsNotBeforeMethodSourceCodeBoundaries
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/5/2019 12:19:39'!
+test04NewSelectorShouldNotStartWithANumber
+
+	self
+		creationWithSelectorNamed: #'2selector'
+		failsWith: ExtractMethodNewSelectorPrecondition newSelectorCanNotStartWithANumberErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/5/2019 12:19:49'!
+test05NewSelectorShouldNotStartWithAnUppercaseLetter
+
+	self
+		creationWithSelectorNamed: #TheSelector
+		failsWith: ExtractMethodNewSelectorPrecondition newSelectorCanNotStartWithAnUppercaseLetterErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/5/2019 12:20:04'!
+test06IntervalToExtractIsNotBeforeMethodSourceCodeBoundaries
 
 	self
 		creationOnInterval: (-1 to: 2)
 		failsWith: ExtractMethod outOfBoundsSelectionErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/21/2019 21:54:15'!
-test05IntervalToExtractIsNotAfterMethodSourceCodeBoundaries
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/5/2019 12:20:20'!
+test07IntervalToExtractIsNotAfterMethodSourceCodeBoundaries
 
 	self
 		creationOnInterval: (1 to: 22)
 		failsWith: ExtractMethod outOfBoundsSelectionErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 4/28/2019 23:44:08'!
-test06IntervalToExtractShouldNotContainAReturnExpression
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/5/2019 12:20:29'!
+test08IntervalToExtractShouldNotContainAReturnExpression
 
 	| intervalToExtract |
 	intervalToExtract  _ self sourceCodeOfMethodWithOneLiteral intervalOfSubCollection: '^ 4'.
 	self
 		creationOnInterval: intervalToExtract
 		failsWith: ExtractMethod returnInSourceToExtractErrorMessage! !
-
-
-!classDefinition: #NewSelectorPreconditionTest category: #'Refactorings-ExtractMethod'!
-TestCase subclass: #NewSelectorPreconditionTest
-	instanceVariableNames: ''
-	classVariableNames: ''
-	poolDictionaries: ''
-	category: 'Refactorings-ExtractMethod'!
-
-!NewSelectorPreconditionTest methodsFor: 'assertions' stamp: 'RNG 4/18/2019 15:57:28'!
-assertPreconditionForSelector: selectorToValidate failsWith: preconditionFailedErrorMessage
-
-	self
-		assertPreconditionForSelector: selectorToValidate
-		ofClass: self class
-		failsWith: preconditionFailedErrorMessage! !
-
-!NewSelectorPreconditionTest methodsFor: 'assertions' stamp: 'RNG 4/18/2019 15:57:06'!
-assertPreconditionForSelector: selectorToValidate ofClass: aClass failsWith: preconditionFailedErrorMessage
-
-	self
-		should: [ NewSelectorPrecondition valueFor: selectorToValidate on: aClass ]
-		raise: Error - MessageNotUnderstood
-		withMessageText: preconditionFailedErrorMessage! !
-
-
-!NewSelectorPreconditionTest methodsFor: 'tests' stamp: 'RNG 4/28/2019 23:35:14'!
-test01NewSelectorShouldNotBeEmpty
-
-	self
-		assertPreconditionForSelector: '' asSymbol
-		failsWith: NewSelectorPrecondition newSelectorCanNotBeEmptyErrorMessage! !
-
-!NewSelectorPreconditionTest methodsFor: 'tests' stamp: 'RNG 4/28/2019 23:35:07'!
-test02NewSelectorShouldNotContainSeparators
-
-	self
-		assertPreconditionForSelector: 'my selector' asSymbol
-		failsWith: NewSelectorPrecondition newSelectorCanNotContainSeparatorsErrorMessage! !
-
-!NewSelectorPreconditionTest methodsFor: 'tests' stamp: 'RNG 4/28/2019 23:35:02'!
-test03NewSelectorShouldNotStartWithANumber
-
-	self
-		assertPreconditionForSelector: #'2selector'
-		failsWith: NewSelectorPrecondition newSelectorCanNotStartWithANumberErrorMessage! !
-
-!NewSelectorPreconditionTest methodsFor: 'tests' stamp: 'RNG 4/28/2019 23:34:52'!
-test04NewSelectorShouldNotStartWithAnUppercaseLetter
-
-	self
-		assertPreconditionForSelector: #TheSelector
-		failsWith: NewSelectorPrecondition newSelectorCanNotStartWithAnUppercaseLetterErrorMessage! !
-
-!NewSelectorPreconditionTest methodsFor: 'tests' stamp: 'RNG 4/18/2019 15:58:06'!
-test05NewSelectorShouldNotExistOnTheGivenClass
-
-	self
-		assertPreconditionForSelector: #test05NewSelectorShouldNotExistOnTheGivenClass
-		ofClass: self class
-		failsWith: NewSelectorPrecondition newSelectorAlreadyDefinedOnTheClassErrorMessage! !
 
 
 !classDefinition: #ExtractMethod category: #'Refactorings-ExtractMethod'!
@@ -286,10 +232,10 @@ fromInterval: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector
 		to: aNewSelector! !
 
 
-!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 4/18/2019 16:08:48'!
+!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 5/4/2019 22:40:07'!
 ensure: aSelector canBeDefinedIn: aClass 
 
-	NewSelectorPrecondition valueFor: aSelector on: aClass! !
+	ExtractMethodNewSelectorPrecondition valueFor: aSelector on: aClass! !
 
 !ExtractMethod class methodsFor: 'validations' stamp: 'RNG 4/29/2019 00:22:51'!
 ensure: anIntervalToExtract isValidIntervalOn: aMethodToExtractCodeFrom 
@@ -333,14 +279,14 @@ is: anIntervalToExtract withinBoundsOf: aSourceCode
 	^ anIntervalToExtract first >= 1 and: [ anIntervalToExtract last - 1 <= aSourceCode size ]! !
 
 
-!classDefinition: #NewSelectorPrecondition category: #'Refactorings-ExtractMethod'!
-RefactoringPrecondition subclass: #NewSelectorPrecondition
+!classDefinition: #ExtractMethodNewSelectorPrecondition category: #'Refactorings-ExtractMethod'!
+RefactoringPrecondition subclass: #ExtractMethodNewSelectorPrecondition
 	instanceVariableNames: 'selectorToValidate classToDefineSelector'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Refactorings-ExtractMethod'!
 
-!NewSelectorPrecondition methodsFor: 'evaluating' stamp: 'RNG 4/18/2019 16:02:13'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating' stamp: 'RNG 4/18/2019 16:02:13'!
 value
 
 	self
@@ -351,105 +297,107 @@ value
 		assertNewSelectorIsNotAlreadyDefinedInTheClass! !
 
 
-!NewSelectorPrecondition methodsFor: 'initialization' stamp: 'RNG 4/18/2019 16:04:44'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'initialization' stamp: 'RNG 4/18/2019 16:04:44'!
 initializeFor: aSelectorToValidate on: aClassToDefineSelector
 
 	selectorToValidate _ aSelectorToValidate.
 	classToDefineSelector _ aClassToDefineSelector! !
 
 
-!NewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 4/18/2019 15:11:55'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 4/18/2019 15:11:55'!
 signalNewSelectorCanNotBeEmptyError
 
 	self refactoringError: self class newSelectorCanNotBeEmptyErrorMessage! !
 
-!NewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 4/18/2019 15:13:59'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 5/5/2019 12:22:02'!
 signalNewSelectorCanNotContainSeparatorsError
 
-	self error: self class newSelectorCanNotContainSeparatorsErrorMessage! !
+	self refactoringError: self class newSelectorCanNotContainSeparatorsErrorMessage! !
 
-!NewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 4/18/2019 15:36:23'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 5/5/2019 12:22:34'!
 signalNewSelectorCanNotStartWithANumberError
 
-	self error: self class newSelectorCanNotStartWithANumberErrorMessage! !
+	self refactoringError: self class newSelectorCanNotStartWithANumberErrorMessage! !
 
-!NewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 4/18/2019 15:41:13'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 4/18/2019 15:41:13'!
 signalNewSelectorCanNotStartWithAnUppercaseLetterError
 
 	self refactoringError: self class newSelectorCanNotStartWithAnUppercaseLetterErrorMessage! !
 
-!NewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 4/18/2019 16:04:10'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 5/5/2019 12:22:40'!
 signalNewSelectorIsAlreadyDefinedInTheClassError
 
-	^ self refactoringError: self class newSelectorAlreadyDefinedOnTheClassErrorMessage! !
+	self refactoringError: self class newSelectorAlreadyDefinedOnTheClassErrorMessage! !
 
 
-!NewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 4/18/2019 15:13:52'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 4/18/2019 15:13:52'!
 assertNewSelectorDoesNotContainSeparators
 
 	(selectorToValidate anySatisfy: [ :character | character isSeparator ])
 		ifTrue: [ self signalNewSelectorCanNotContainSeparatorsError ]! !
 
-!NewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 4/18/2019 15:36:32'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 5/5/2019 12:23:28'!
 assertNewSelectorDoesNotStartWithANumber
 
-	selectorToValidate first isDigit ifTrue: [ self signalNewSelectorCanNotStartWithANumberError ].! !
+	selectorToValidate first isDigit
+		ifTrue: [ self signalNewSelectorCanNotStartWithANumberError ]! !
 
-!NewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 4/18/2019 15:40:19'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 5/5/2019 12:23:23'!
 assertNewSelectorDoesNotStartWithAnUppercaseLetter
 	
-	selectorToValidate first isUppercase ifTrue: [ self signalNewSelectorCanNotStartWithAnUppercaseLetterError ]! !
+	selectorToValidate first isUppercase
+		ifTrue: [ self signalNewSelectorCanNotStartWithAnUppercaseLetterError ]! !
 
-!NewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 4/18/2019 16:06:39'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 5/5/2019 12:23:12'!
 assertNewSelectorIsNotAlreadyDefinedInTheClass
 
 	(classToDefineSelector includesSelector: selectorToValidate)
-	ifTrue: [ self signalNewSelectorIsAlreadyDefinedInTheClassError ].! !
+		ifTrue: [ self signalNewSelectorIsAlreadyDefinedInTheClassError ]! !
 
-!NewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 4/18/2019 15:11:46'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 5/5/2019 12:23:16'!
 assertNewSelectorIsNotEmpty
 
-	selectorToValidate ifEmpty: [ self signalNewSelectorCanNotBeEmptyError ].! !
+	selectorToValidate ifEmpty: [ self signalNewSelectorCanNotBeEmptyError ]! !
 
 "-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- "!
 
-!classDefinition: 'NewSelectorPrecondition class' category: #'Refactorings-ExtractMethod'!
-NewSelectorPrecondition class
+!classDefinition: 'ExtractMethodNewSelectorPrecondition class' category: #'Refactorings-ExtractMethod'!
+ExtractMethodNewSelectorPrecondition class
 	instanceVariableNames: ''!
 
-!NewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:58:58'!
+!ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:58:58'!
 newSelectorAlreadyDefinedOnTheClassErrorMessage
 
 	^ 'New selector is already defined on this class'! !
 
-!NewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 14:40:21'!
+!ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 14:40:21'!
 newSelectorCanNotBeEmptyErrorMessage
 
 	^ 'New selector can not be empty'! !
 
-!NewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:05:41'!
+!ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:05:41'!
 newSelectorCanNotContainSeparatorsErrorMessage
 
 	^ 'New selector can not contain separators'! !
 
-!NewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:34:30'!
+!ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:34:30'!
 newSelectorCanNotStartWithANumberErrorMessage
 
 	^ 'New selector can not start with a number'! !
 
-!NewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:41:13'!
+!ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:41:13'!
 newSelectorCanNotStartWithAnUppercaseLetterErrorMessage
 
 	^ 'New selector can not start with an uppercase letter'! !
 
 
-!NewSelectorPrecondition class methodsFor: 'instance creation' stamp: 'RNG 4/18/2019 16:01:43'!
+!ExtractMethodNewSelectorPrecondition class methodsFor: 'instance creation' stamp: 'RNG 4/18/2019 16:01:43'!
 for: aSelectorToValidate on: aClass 
 
 	^ self new initializeFor: aSelectorToValidate on: aClass! !
 
 
-!NewSelectorPrecondition class methodsFor: 'evaluating' stamp: 'RNG 4/18/2019 15:59:44'!
+!ExtractMethodNewSelectorPrecondition class methodsFor: 'evaluating' stamp: 'RNG 4/18/2019 15:59:44'!
 valueFor: aSelectorToValidate on: aClass
 
 	^ (self for: aSelectorToValidate on: aClass) value! !
