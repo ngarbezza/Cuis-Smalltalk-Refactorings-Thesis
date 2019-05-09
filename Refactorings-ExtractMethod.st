@@ -12,6 +12,12 @@ assertClassHasDefined: newSelector withBody: newSourceCode
 		assert: (classToRefactor >> newSelector) sourceCode
 		equals: newSourceCode! !
 
+!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 5/8/2019 23:34:49'!
+assertClassHasDefined: newSelector withBody: newSourceCode inCategory: aCategory
+
+	self assertClassHasDefined: newSelector withBody: newSourceCode.
+	self assert: aCategory equals: (classToRefactor >> newSelector) category! !
+
 !ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 4/21/2019 21:54:54'!
 creationOnInterval: anIntervalToExtract failsWith: aRefactoringErrorMessage
 
@@ -30,7 +36,7 @@ creationWithSelectorNamed: aSelectorName failsWith: aRefactoringErrorMessage
 		ofMethod: self methodWithOneLiteral
 		failsWith: aRefactoringErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 4/20/2019 21:29:59'!
+!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 5/8/2019 23:37:37'!
 creationWithSelectorNamed: aSelectorName onInterval: anIntervalToExtract ofMethod: methodToExtractCodeFrom failsWith: aRefactoringErrorMessage
 
 	self
@@ -38,7 +44,7 @@ creationWithSelectorNamed: aSelectorName onInterval: anIntervalToExtract ofMetho
 			ExtractMethod
 				fromInterval: anIntervalToExtract
 				of: methodToExtractCodeFrom
-				to: aSelectorName ]
+				to: aSelectorName categorizedAs: aCategory ]
 		raise: Error - MessageNotUnderstood
 		withMessageText: aRefactoringErrorMessage! !
 
@@ -77,13 +83,14 @@ sourceCodeOfMethodWithOneLiteral
 	^ self selectorOfMethodWithOneLiteral asString , ' ^ ' , sourceCodeToExtract! !
 
 
-!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 4/29/2019 00:29:26'!
-extractLiteralOn: newSelector
+!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 5/8/2019 23:37:49'!
+extractLiteralTo: newSelector on: aCategory 
 
 	(ExtractMethod
 		fromInterval: self intervalToExtractFromMethodWithOneLiteral
 		of: self methodWithOneLiteral
-		to: newSelector) apply! !
+		to: newSelector
+		categorizedAs: aCategory) apply! !
 
 
 !ExtractMethodTest methodsFor: 'set up' stamp: 'RNG 4/21/2019 11:15:40'!
@@ -94,7 +101,7 @@ setUp
 	self compileMethodWithOneLiteral.! !
 
 
-!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 5/5/2019 12:20:35'!
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 5/8/2019 23:30:20'!
 test09ExtractingALiteralCreatesANewMethodAndChangesExistingCodeToCallThatNewMethod
 
 	| newSelector sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
@@ -105,9 +112,9 @@ test09ExtractingALiteralCreatesANewMethodAndChangesExistingCodeToCallThatNewMeth
 	originalSelector _ self selectorOfMethodWithOneLiteral.
 	updatedSourceCodeOfOriginalMethod _ originalSelector , ' ^ self ' , newSelector asString.
 
-	self extractLiteralOn: newSelector.
+	self extractLiteralTo: newSelector on: #category.
 
-	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod.
+	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
 
 
@@ -172,18 +179,18 @@ test08IntervalToExtractShouldNotContainAReturnExpression
 
 !classDefinition: #ExtractMethod category: #'Refactorings-ExtractMethod'!
 Refactoring subclass: #ExtractMethod
-	instanceVariableNames: 'intervalToExtract sourceMethod newSelector'
+	instanceVariableNames: 'intervalToExtract sourceMethod newSelector categoryOfNewSelector'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Refactorings-ExtractMethod'!
 
-!ExtractMethod methodsFor: 'initialization' stamp: 'RNG 4/20/2019 21:33:57'!
-initializeFrom: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector
+!ExtractMethod methodsFor: 'initialization' stamp: 'RNG 5/8/2019 23:39:59'!
+initializeFrom: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector in: aCategory 
 
 	intervalToExtract _ anIntervalToExtract.
 	sourceMethod _ aMethodToExtractCodeFrom.
-	newSelector _ aNewSelector
-	! !
+	newSelector _ aNewSelector.
+	categoryOfNewSelector _ aCategory! !
 
 
 !ExtractMethod methodsFor: 'applying' stamp: 'RNG 4/29/2019 00:45:18'!
@@ -193,25 +200,35 @@ apply
 		defineExtractedMethod;
 		changeExistingMethod! !
 
-!ExtractMethod methodsFor: 'applying' stamp: 'RNG 4/29/2019 00:48:35'!
+!ExtractMethod methodsFor: 'applying' stamp: 'RNG 5/8/2019 23:34:19'!
 changeExistingMethod
-	
-	| methodCategory newSourceCode |
-	methodCategory _ sourceMethod methodClass organization categoryOfElement: sourceMethod selector.
-	newSourceCode _ sourceMethod sourceCode
-		copyReplaceFrom: intervalToExtract first
-		to: intervalToExtract last - 1
-		with: 'self ', newSelector asString.
-	sourceMethod methodClass
-		compile: newSourceCode
-		classified: methodCategory! !
 
-!ExtractMethod methodsFor: 'applying' stamp: 'RNG 4/29/2019 01:05:11'!
+	sourceMethod methodClass
+		compile: self updatedSourceCodeOfExistingMethod
+		classified: sourceMethod category! !
+
+!ExtractMethod methodsFor: 'applying' stamp: 'RNG 5/8/2019 23:40:24'!
 defineExtractedMethod
+
+ 	sourceMethod methodClass
+		compile: self newMethodSourceCode
+		classified: categoryOfNewSelector! !
+
+
+!ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/7/2019 00:14:58'!
+newMethodSourceCode
 
 	| extractedSource |
 	extractedSource _ sourceMethod sourceCode copyFrom: intervalToExtract first to: intervalToExtract last - 1.
- 	sourceMethod methodClass compile: newSelector asString , Character lf asString , Character lf asString , Character tab asString , '^ ' , extractedSource classified: Categorizer default.! !
+	^ newSelector asString , String lfString , String lfString , String tab , '^ ' , extractedSource! !
+
+!ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/7/2019 00:12:04'!
+updatedSourceCodeOfExistingMethod
+
+	^ sourceMethod sourceCode
+		copyReplaceFrom: intervalToExtract first
+		to: intervalToExtract last - 1
+		with: 'self ', newSelector asString! !
 
 "-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- "!
 
@@ -219,8 +236,8 @@ defineExtractedMethod
 ExtractMethod class
 	instanceVariableNames: ''!
 
-!ExtractMethod class methodsFor: 'instance creation' stamp: 'RNG 4/20/2019 21:39:04'!
-fromInterval: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector
+!ExtractMethod class methodsFor: 'instance creation' stamp: 'RNG 5/8/2019 23:39:31'!
+fromInterval: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector categorizedAs: aCategory 
 
 	self
 		ensure: aNewSelector canBeDefinedIn: aMethodToExtractCodeFrom methodClass;
@@ -229,7 +246,8 @@ fromInterval: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector
 	^ self new
 		initializeFrom: anIntervalToExtract
 		of: aMethodToExtractCodeFrom
-		to: aNewSelector! !
+		to: aNewSelector
+		in: aCategory! !
 
 
 !ExtractMethod class methodsFor: 'validations' stamp: 'RNG 5/4/2019 22:40:07'!
