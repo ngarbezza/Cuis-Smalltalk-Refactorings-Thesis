@@ -1,7 +1,7 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3719] on 29 April 2019 at 1:11:27 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3727] on 9 May 2019 at 12:01:25 am'!
 
 
-!RefactoringMenues class methodsFor: 'editor menus' stamp: 'RNG 4/20/2019 21:09:55'!
+!RefactoringMenues class methodsFor: 'editor menus' stamp: 'RNG 5/9/2019 00:00:50'!
 smalltalkEditorMenuOptions
 
 	^`{
@@ -15,7 +15,7 @@ smalltalkEditorMenuOptions
 		{
 				#itemGroup 		-> 		35.
 				#itemOrder 		-> 		20.
-				#label 			-> 		'Extract Method... (X)'.
+				#label 			-> 		'Extract Method... (M)'.
 				#selector 		-> 		#extractMethod.
 				#icon 			-> 		#saveAsIcon
 		} asDictionary
