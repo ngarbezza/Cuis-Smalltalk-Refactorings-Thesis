@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 13 May 2019 at 2:25:44 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 13 May 2019 at 2:53:04 am'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 1!
+!provides: 'Refactorings-ExtractMethod' 1 2!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -107,7 +107,7 @@ ensure: aSelector canBeDefinedIn: aClass
 
 	ExtractMethodNewSelectorPrecondition valueFor: aSelector on: aClass! !
 
-!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 5/13/2019 01:44:07'!
+!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 5/13/2019 02:42:36'!
 ensure: anIntervalToExtract isValidIntervalOn: aMethodToExtractCodeFrom 
 
 	(self is: anIntervalToExtract withinBoundsOf: aMethodToExtractCodeFrom sourceCode)
@@ -115,6 +115,8 @@ ensure: anIntervalToExtract isValidIntervalOn: aMethodToExtractCodeFrom
 	(self is: anIntervalToExtract partOfMethodDefinitionOf: aMethodToExtractCodeFrom)
 		ifTrue: [ self signalSelectedCodeIsInvalidForExtractError ].
 	(self method: aMethodToExtractCodeFrom containsAValidExpressionOn: anIntervalToExtract)
+		ifFalse: [ self signalSelectedCodeIsInvalidForExtractError ].
+	(self doesNotCauseSyntaxError: anIntervalToExtract whenExtractedOn: aMethodToExtractCodeFrom)
 		ifFalse: [ self signalSelectedCodeIsInvalidForExtractError ].
 	(self containsAReturnExpression: aMethodToExtractCodeFrom sourceCode onInterval: anIntervalToExtract)
 		ifTrue: [ self signalReturnInSourceToExtractError ]! !
@@ -149,10 +151,30 @@ signalSelectedCodeIsInvalidForExtractError
 
 	self refactoringError: self selectedCodeInvalidForExtractErrorMessage! !
 
+!ExtractMethod class methodsFor: 'parsing - private' stamp: 'RNG 5/13/2019 02:40:15'!
+canBeParsed: selectedCode on: aClass asMethod: isFullMethod
+
+	[ Parser parse: selectedCode class: aClass noPattern: isFullMethod not ]
+		on: SyntaxErrorNotification do: [ ^ false ].
+	^ true! !
+
 !ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 4/29/2019 00:25:20'!
 containsAReturnExpression: aSourceCode onInterval: anIntervalToExtract 
 
 	^ (aSourceCode copyFrom: anIntervalToExtract first to: anIntervalToExtract last - 1) includes: $^! !
+
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/13/2019 02:42:17'!
+doesNotCauseSyntaxError: anIntervalToExtract whenExtractedOn: aMethodToExtractCodeFrom
+
+	| newSourceCode |
+	newSourceCode _ aMethodToExtractCodeFrom sourceCode
+		copyReplaceFrom: anIntervalToExtract first
+		to: anIntervalToExtract last - 1
+		with: 'self xxxxx'.
+	^ self
+		canBeParsed: newSourceCode
+		on: aMethodToExtractCodeFrom methodClass
+		asMethod: true! !
 
 !ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/13/2019 01:11:56'!
 is: anIntervalToExtract partOfMethodDefinitionOf: aMethodToExtractCodeFrom
@@ -168,16 +190,17 @@ is: anIntervalToExtract withinBoundsOf: aSourceCode
 
 	^ anIntervalToExtract first >= 1 and: [ anIntervalToExtract last - 1 <= aSourceCode size ]! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/13/2019 01:45:01'!
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/13/2019 02:41:03'!
 method: aMethod containsAValidExpressionOn: anIntervalToExtract
 
 	| selectedCode |
 	selectedCode _ aMethod sourceCode
 		copyFrom: anIntervalToExtract first to: anIntervalToExtract last - 1.
 
-	[ Parser parse: selectedCode class: aMethod methodClass noPattern: true ]
-		on: SyntaxErrorNotification do: [ ^ false ].
-	^ true! !
+	^ self
+		canBeParsed: selectedCode
+		on: aMethod methodClass
+		asMethod: false! !
 
 !ExtractMethodApplier methodsFor: 'refactoring - creation' stamp: 'RNG 5/13/2019 02:17:03'!
 createRefactoring
@@ -201,10 +224,10 @@ requestRefactoringParameters
 !ExtractMethodApplier methodsFor: 'refactoring - changes' stamp: 'RNG 5/13/2019 02:17:27'!
 showChanges! !
 
-!ExtractMethodApplier methodsFor: 'initialization' stamp: 'RNG 5/13/2019 02:12:57'!
+!ExtractMethodApplier methodsFor: 'initialization' stamp: 'RNG 5/13/2019 02:32:19'!
 initializeFor: anIntervalToExtract of: aMethodToExtractCodeFrom
 
-	intervalToExtract _ anIntervalToExtract first to: anIntervalToExtract last + 1.
+	intervalToExtract _ anIntervalToExtract.
 	methodToExtractCodeFrom _ aMethodToExtractCodeFrom! !
 
 !ExtractMethodApplier class methodsFor: 'pre-conditions' stamp: 'RNG 5/13/2019 02:06:39'!
@@ -214,12 +237,14 @@ assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: anIntervalToExtract
 		ensure: anIntervalToExtract
 		isValidIntervalOn: aMethodToExtractCodeFrom! !
 
-!ExtractMethodApplier class methodsFor: 'instance creation' stamp: 'RNG 5/13/2019 02:11:51'!
+!ExtractMethodApplier class methodsFor: 'instance creation' stamp: 'RNG 5/13/2019 02:32:10'!
 for: anIntervalToExtract of: aMethodToExtractCodeFrom
 
-	self assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: anIntervalToExtract.
+	| intervalToExtract |
+	intervalToExtract _ anIntervalToExtract first to: anIntervalToExtract last + 1.
+	self assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: intervalToExtract.
 
-	^ self new initializeFor: anIntervalToExtract of: aMethodToExtractCodeFrom! !
+	^ self new initializeFor: intervalToExtract of: aMethodToExtractCodeFrom! !
 
 !ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating' stamp: 'RNG 4/18/2019 16:02:13'!
 value

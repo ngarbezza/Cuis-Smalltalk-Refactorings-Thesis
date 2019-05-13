@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 13 May 2019 at 2:25:19 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 13 May 2019 at 2:53:19 am'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 1!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 2!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -233,6 +233,19 @@ test13IntervalToExtractShouldBeAValidSmalltalkExpression
 	| intervalToExtract |
 	intervalToExtract  _ self sourceCodeOfMethodToExtractCodeFrom
 		intervalOfSubCollection: '+ 4'.
+	self
+		creationOnInterval: intervalToExtract
+		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/13/2019 02:48:59'!
+test14OriginalCodeShouldNotEndUpWIthSyntaxErrors
+
+	| firstOccurrence secondOccurrence intervalToExtract |
+	firstOccurrence _ self sourceCodeOfMethodToExtractCodeFrom
+		indexOfSubCollection: 'localVar' startingAt: 1.
+	secondOccurrence _ self sourceCodeOfMethodToExtractCodeFrom
+		indexOfSubCollection: 'localVar' startingAt: firstOccurrence + 1.
+	intervalToExtract _ secondOccurrence toSelfPlus: 'localVar' size.
 	self
 		creationOnInterval: intervalToExtract
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
