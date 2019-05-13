@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 13 May 2019 at 1:33:20 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 13 May 2019 at 2:25:19 am'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 0!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 1!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -223,6 +223,16 @@ test12IntervalToExtractDoesNotContainsPartOfPragmasDefinition
 	| intervalToExtract |
 	intervalToExtract  _ self sourceCodeOfMethodToExtractCodeFrom
 		intervalOfSubCollection: '<anotherAnnoyingPragma>'.
+	self
+		creationOnInterval: intervalToExtract
+		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/13/2019 01:39:03'!
+test13IntervalToExtractShouldBeAValidSmalltalkExpression
+
+	| intervalToExtract |
+	intervalToExtract  _ self sourceCodeOfMethodToExtractCodeFrom
+		intervalOfSubCollection: '+ 4'.
 	self
 		creationOnInterval: intervalToExtract
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
