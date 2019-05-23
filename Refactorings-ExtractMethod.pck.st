@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 13 May 2019 at 2:53:04 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 23 May 2019 at 1:30:22 am'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 2!
+!provides: 'Refactorings-ExtractMethod' 1 3!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -74,12 +74,14 @@ defineExtractedMethod
 		compile: self newMethodSourceCode
 		classified: categoryOfNewSelector! !
 
-!ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/7/2019 00:14:58'!
+!ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/13/2019 03:13:20'!
 newMethodSourceCode
 
-	| extractedSource |
+	| extractedSource parseNode return |
 	extractedSource _ sourceMethod sourceCode copyFrom: intervalToExtract first to: intervalToExtract last - 1.
-	^ newSelector asString , String lfString , String lfString , String tab , '^ ' , extractedSource! !
+	parseNode _ Parser parse: extractedSource class: sourceMethod methodClass noPattern: true.
+	return _ parseNode block statements size = 1 ifTrue: [ '^ ' ] ifFalse: [ '' ].
+	^ newSelector asString , String lfString , String lfString , String tab , return , extractedSource! !
 
 !ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/7/2019 00:12:04'!
 updatedSourceCodeOfExistingMethod
@@ -176,31 +178,35 @@ doesNotCauseSyntaxError: anIntervalToExtract whenExtractedOn: aMethodToExtractCo
 		on: aMethodToExtractCodeFrom methodClass
 		asMethod: true! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/13/2019 01:11:56'!
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/13/2019 03:07:07'!
 is: anIntervalToExtract partOfMethodDefinitionOf: aMethodToExtractCodeFrom
 
 	| actualMethodBeginning |
 	actualMethodBeginning _ Parser new
 		indexOfFirstStatementOf: aMethodToExtractCodeFrom sourceCode.
 
-	^ anIntervalToExtract first <= actualMethodBeginning! !
+	^ anIntervalToExtract first < actualMethodBeginning! !
 
 !ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 4/28/2019 23:52:09'!
 is: anIntervalToExtract withinBoundsOf: aSourceCode
 
 	^ anIntervalToExtract first >= 1 and: [ anIntervalToExtract last - 1 <= aSourceCode size ]! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/13/2019 02:41:03'!
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/23/2019 01:02:19'!
 method: aMethod containsAValidExpressionOn: anIntervalToExtract
 
-	| selectedCode |
-	selectedCode _ aMethod sourceCode
-		copyFrom: anIntervalToExtract first to: anIntervalToExtract last - 1.
+	| source selectedCode last canBeParsed parseNodeOne parseNodeTwo actualInterval |
+	source _ aMethod sourceCode.
+	last  _ anIntervalToExtract last - 1.
+	selectedCode _ source copyFrom: anIntervalToExtract first to: last.
 
-	^ self
-		canBeParsed: selectedCode
-		on: aMethod methodClass
-		asMethod: false! !
+	canBeParsed _ self canBeParsed: selectedCode on: aMethod methodClass asMethod: false.
+	parseNodeOne  _ aMethod methodNode parseNodeIncluding: anIntervalToExtract first ifAbsent: [ ^ false].
+	actualInterval _ parseNodeOne value.
+	[ (source at: actualInterval first) isSeparator ] whileTrue: [ actualInterval _ actualInterval first + 1 to: actualInterval last ].
+	parseNodeTwo  _ aMethod methodNode parseNodeIncluding: last ifAbsent: [ ^ false].
+	actualInterval _ actualInterval first to: parseNodeTwo value last.
+	^ canBeParsed & (actualInterval = (anIntervalToExtract first to: last))! !
 
 !ExtractMethodApplier methodsFor: 'refactoring - creation' stamp: 'RNG 5/13/2019 02:17:03'!
 createRefactoring
@@ -382,11 +388,12 @@ indexOfFirstStatementOf: aSourceCode
 	self temporaries; pragmaSequence.
 	^ hereMark! !
 
-!SmalltalkEditor methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/13/2019 02:00:49'!
+!SmalltalkEditor methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/17/2019 08:20:04'!
 extractMethod
 
-	ExtractMethodApplier createAndValueHandlingExceptions: [
-		ExtractMethodApplier for: self selectionInterval of: self codeProvider currentCompiledMethod ]! !
+	morph owningWindow okToChange ifTrue: [
+		ExtractMethodApplier createAndValueHandlingExceptions: [
+			ExtractMethodApplier for: self selectionInterval of: self codeProvider currentCompiledMethod ] ]! !
 
 !SmalltalkEditor methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/9/2019 00:06:54'!
 extractMethod: aKeyboardEvent

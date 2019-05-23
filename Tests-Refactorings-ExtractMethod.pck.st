@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 13 May 2019 at 2:53:19 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 23 May 2019 at 1:30:25 am'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 2!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 3!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -86,7 +86,7 @@ selectorOfMethodToExtractCodeFrom
 
 	^ #mExtractMethodExample:! !
 
-!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/13/2019 01:17:25'!
+!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/23/2019 01:06:15'!
 sourceCodeOfMethodToExtractCodeFrom
 
 	^ self selectorOfMethodToExtractCodeFrom, ' anArgument
@@ -94,27 +94,43 @@ sourceCodeOfMethodToExtractCodeFrom
 	<anAnnoyingPragma>
 	| localVar |
 	<anotherAnnoyingPragma>
-	self m2.
+	self m1.
+	self m2: ''hey true''.
 	self m3: anArgument.
-	localVar := 3.
+	localVar := #($x $y $z) size.
 	^ localVar + 4'! !
 
-!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/12/2019 23:32:28'!
-updatedSourceCodeAfterExtractingTo: newSelector
+!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/13/2019 03:01:44'!
+updatedSourceCodeAfterExtracting: anInterval to: newSelector
 
 	^ self sourceCodeOfMethodToExtractCodeFrom
-		copyReplaceFrom: self intervalToExtractFromMethod first
-		to: self intervalToExtractFromMethod last - 1
+		copyReplaceFrom: anInterval first
+		to: anInterval last - 1
 		with: 'self ' , newSelector asString! !
 
-!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 5/12/2019 23:26:00'!
-applyExtractMethodTo: newSelector on: aCategory 
+!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/13/2019 03:02:11'!
+updatedSourceCodeAfterExtractingTo: newSelector
+
+	^ self updatedSourceCodeAfterExtracting:
+		self intervalToExtractFromMethod
+		to: newSelector! !
+
+!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 5/13/2019 02:58:10'!
+applyExtractMethodOf: anInterval to: newSelector on: aCategory 
 
 	(ExtractMethod
-		fromInterval: self intervalToExtractFromMethod
+		fromInterval: anInterval
 		of: self methodToExtractCodeFrom
 		to: newSelector
 		categorizedAs: aCategory) apply! !
+
+!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 5/13/2019 02:58:43'!
+applyExtractMethodTo: newSelector on: aCategory
+
+	self
+		applyExtractMethodOf: self intervalToExtractFromMethod
+		to: newSelector
+		on: aCategory! !
 
 !ExtractMethodTest methodsFor: 'set up' stamp: 'RNG 5/12/2019 23:21:15'!
 setUp
@@ -135,6 +151,26 @@ test09ExtractingALiteralCreatesANewMethodAndChangesExistingCodeToCallThatNewMeth
 	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtractingTo: newSelector.
 
 	self applyExtractMethodTo: newSelector on: #category.
+
+	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
+	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
+
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 5/23/2019 00:40:37'!
+test15ExtractingAListOfStatementsCreatesANewMethodWithoutReturn
+
+	| newSelector codeToExtract intervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
+	newSelector _ #newMethod.
+	codeToExtract _
+	'self m1.
+	self m2: ''hey true'''.
+	intervalToExtract _ self sourceCodeOfMethodToExtractCodeFrom intervalOfSubCollection: codeToExtract.
+	sourceCodeOfNewMethod _ newSelector asString , '
+
+	' , codeToExtract.
+	originalSelector _ self selectorOfMethodToExtractCodeFrom.
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: intervalToExtract to: newSelector.
+
+	self applyExtractMethodOf: intervalToExtract to: newSelector on: #category.
 
 	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
@@ -246,6 +282,15 @@ test14OriginalCodeShouldNotEndUpWIthSyntaxErrors
 	secondOccurrence _ self sourceCodeOfMethodToExtractCodeFrom
 		indexOfSubCollection: 'localVar' startingAt: firstOccurrence + 1.
 	intervalToExtract _ secondOccurrence toSelfPlus: 'localVar' size.
+	self
+		creationOnInterval: intervalToExtract
+		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/23/2019 00:41:08'!
+test16CanNotExtractPartOfALiteral
+
+	| intervalToExtract |
+	intervalToExtract _ self sourceCodeOfMethodToExtractCodeFrom intervalOfSubCollection: 'true'.
 	self
 		creationOnInterval: intervalToExtract
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
