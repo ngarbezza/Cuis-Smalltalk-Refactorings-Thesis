@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 23 May 2019 at 1:30:22 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3771] on 26 May 2019 at 12:55:18 am'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 3!
+!provides: 'Refactorings-ExtractMethod' 1 4!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -109,16 +109,12 @@ ensure: aSelector canBeDefinedIn: aClass
 
 	ExtractMethodNewSelectorPrecondition valueFor: aSelector on: aClass! !
 
-!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 5/13/2019 02:42:36'!
+!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 5/25/2019 22:41:54'!
 ensure: anIntervalToExtract isValidIntervalOn: aMethodToExtractCodeFrom 
 
 	(self is: anIntervalToExtract withinBoundsOf: aMethodToExtractCodeFrom sourceCode)
 		ifFalse: [ self signalOutOfBoundsIntervalError ].
-	(self is: anIntervalToExtract partOfMethodDefinitionOf: aMethodToExtractCodeFrom)
-		ifTrue: [ self signalSelectedCodeIsInvalidForExtractError ].
 	(self method: aMethodToExtractCodeFrom containsAValidExpressionOn: anIntervalToExtract)
-		ifFalse: [ self signalSelectedCodeIsInvalidForExtractError ].
-	(self doesNotCauseSyntaxError: anIntervalToExtract whenExtractedOn: aMethodToExtractCodeFrom)
 		ifFalse: [ self signalSelectedCodeIsInvalidForExtractError ].
 	(self containsAReturnExpression: aMethodToExtractCodeFrom sourceCode onInterval: anIntervalToExtract)
 		ifTrue: [ self signalReturnInSourceToExtractError ]! !
@@ -153,60 +149,71 @@ signalSelectedCodeIsInvalidForExtractError
 
 	self refactoringError: self selectedCodeInvalidForExtractErrorMessage! !
 
-!ExtractMethod class methodsFor: 'parsing - private' stamp: 'RNG 5/13/2019 02:40:15'!
-canBeParsed: selectedCode on: aClass asMethod: isFullMethod
-
-	[ Parser parse: selectedCode class: aClass noPattern: isFullMethod not ]
-		on: SyntaxErrorNotification do: [ ^ false ].
-	^ true! !
-
 !ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 4/29/2019 00:25:20'!
 containsAReturnExpression: aSourceCode onInterval: anIntervalToExtract 
 
 	^ (aSourceCode copyFrom: anIntervalToExtract first to: anIntervalToExtract last - 1) includes: $^! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/13/2019 02:42:17'!
-doesNotCauseSyntaxError: anIntervalToExtract whenExtractedOn: aMethodToExtractCodeFrom
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/26/2019 00:36:17'!
+interval: anIntervalToExtract isBeginningOfStatementIn: parseNodePath
 
-	| newSourceCode |
-	newSourceCode _ aMethodToExtractCodeFrom sourceCode
-		copyReplaceFrom: anIntervalToExtract first
-		to: anIntervalToExtract last - 1
-		with: 'self xxxxx'.
-	^ self
-		canBeParsed: newSourceCode
-		on: aMethodToExtractCodeFrom methodClass
-		asMethod: true! !
+	^ parseNodePath last value first = anIntervalToExtract first! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/13/2019 03:07:07'!
-is: anIntervalToExtract partOfMethodDefinitionOf: aMethodToExtractCodeFrom
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/26/2019 00:36:10'!
+interval: anIntervalToExtract isEndOfStatementIn: parseNodePath
 
-	| actualMethodBeginning |
-	actualMethodBeginning _ Parser new
-		indexOfFirstStatementOf: aMethodToExtractCodeFrom sourceCode.
+	^ parseNodePath last value last = (anIntervalToExtract last - 1)! !
 
-	^ anIntervalToExtract first < actualMethodBeginning! !
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/26/2019 00:34:20'!
+interval: anIntervalToExtract of: sourceCode containsCompleteAstNodeOn: parseNodeOne and: parseNodeTwo
+
+	| actualInterval |
+	actualInterval _ parseNodeOne value.
+
+	"workaround for literals that have an extra space on the source range beginning"
+	[ (sourceCode at: actualInterval first) isSeparator ]
+		whileTrue: [ actualInterval _ actualInterval first + 1 to: actualInterval last ].
+	actualInterval _ actualInterval first to: parseNodeTwo value last + 1.
+
+	^ actualInterval = anIntervalToExtract! !
 
 !ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 4/28/2019 23:52:09'!
 is: anIntervalToExtract withinBoundsOf: aSourceCode
 
 	^ anIntervalToExtract first >= 1 and: [ anIntervalToExtract last - 1 <= aSourceCode size ]! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/23/2019 01:02:19'!
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/26/2019 00:26:31'!
+isLeftSideOfAssignment: parseNodeOnePath
+
+	^ parseNodeOnePath size > 1 and: [
+		parseNodeOnePath second key isAssignmentNode and: [
+			parseNodeOnePath second key variable = parseNodeOnePath first key ] ]! !
+
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/26/2019 00:27:01'!
+isValidNodeForExtractingMethod: parseNodeOnePath
+
+	^ (parseNodeOnePath first key isMessageNode not) and: [
+		(self isLeftSideOfAssignment: parseNodeOnePath) not ]! !
+
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/26/2019 00:35:43'!
 method: aMethod containsAValidExpressionOn: anIntervalToExtract
 
-	| source selectedCode last canBeParsed parseNodeOne parseNodeTwo actualInterval |
-	source _ aMethod sourceCode.
+	| last methodNode parseNodeOne parseNodeTwo firstNode secondNode parseNodeOnePath parseNodeTwoPath |
 	last  _ anIntervalToExtract last - 1.
-	selectedCode _ source copyFrom: anIntervalToExtract first to: last.
+	methodNode _ aMethod methodNode.
+	parseNodeOnePath  _ methodNode parseNodesPathAt: anIntervalToExtract first ifAbsent: [ ^ false].
+	parseNodeTwoPath _ methodNode parseNodesPathAt: last ifAbsent: [ ^ false ].
+	
+	parseNodeOne _ parseNodeOnePath first.
+	parseNodeTwo _ parseNodeTwoPath first.
+	firstNode _  parseNodeOne key.
+	secondNode _ parseNodeTwo key.
 
-	canBeParsed _ self canBeParsed: selectedCode on: aMethod methodClass asMethod: false.
-	parseNodeOne  _ aMethod methodNode parseNodeIncluding: anIntervalToExtract first ifAbsent: [ ^ false].
-	actualInterval _ parseNodeOne value.
-	[ (source at: actualInterval first) isSeparator ] whileTrue: [ actualInterval _ actualInterval first + 1 to: actualInterval last ].
-	parseNodeTwo  _ aMethod methodNode parseNodeIncluding: last ifAbsent: [ ^ false].
-	actualInterval _ actualInterval first to: parseNodeTwo value last.
-	^ canBeParsed & (actualInterval = (anIntervalToExtract first to: last))! !
+	^ (self interval: anIntervalToExtract of: aMethod sourceCode containsCompleteAstNodeOn: parseNodeOne and: parseNodeTwo) and: [
+		(self isValidNodeForExtractingMethod: parseNodeOnePath) and: [
+			firstNode = secondNode or: [
+				(self interval: anIntervalToExtract isBeginningOfStatementIn: parseNodeOnePath) and: [
+					(self interval: anIntervalToExtract isEndOfStatementIn: parseNodeTwoPath) ] ] ] ]! !
 
 !ExtractMethodApplier methodsFor: 'refactoring - creation' stamp: 'RNG 5/13/2019 02:17:03'!
 createRefactoring
@@ -375,18 +382,68 @@ smalltalkEditorMenuOptions
 		} asDictionary
 	}`! !
 
-!Parser methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/13/2019 01:05:13'!
-bindTemp: aString range: anInterval 
-! !
+!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 00:49:53'!
+expandRange: aSourceRange basedOn: sourceRangesOfChildNode
 
-!Parser methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/13/2019 01:11:09'!
-indexOfFirstStatementOf: aSourceCode
-	"Scans until it finds the first statement of the method represented by aSourceCode"
+	| intervals |
+	intervals _ sourceRangesOfChildNode isInterval
+		ifTrue: [ OrderedCollection with: sourceRangesOfChildNode ] ifFalse: [ sourceRangesOfChildNode ].
+	intervals withIndexDo: [ :interval :index |
+		(interval last > aSourceRange first) ifTrue: [
+			^ (intervals at: index - 1) first to: aSourceRange last ] ].
+	^ intervals last first to: aSourceRange last! !
 
-	self parseSelector: aSourceCode; pragmaSequence.
-	encoder _ self.
-	self temporaries; pragmaSequence.
-	^ hereMark! !
+!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 00:45:37'!
+expandRanges: sourceRanges basedOn: allSourceRanges
+
+	^ sourceRanges! !
+
+!Encoder methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 00:38:01'!
+expandedSourceRanges
+
+	| expandedSourceRanges |
+	expandedSourceRanges _ Dictionary new.
+	sourceRanges keysAndValuesDo: [ :parseNode :nodeRanges |
+		| expandedNodeSourceRanges |
+		expandedNodeSourceRanges _ parseNode expandRanges: nodeRanges basedOn: sourceRanges.
+		expandedSourceRanges at: parseNode put: expandedNodeSourceRanges ].
+	^ expandedSourceRanges! !
+
+!Encoder methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/25/2019 22:40:47'!
+parseNodesPathAt: aPosition ifAbsent: aBlockClosure
+
+	| nodesWithRangeAtPosition |
+	nodesWithRangeAtPosition _ SortedCollection sortBlock: [ :nodePathOne :nodePathTwo |
+		nodePathOne value first >= nodePathTwo value first and: [
+			nodePathOne value last <= nodePathTwo value last ] ].
+
+	self expandedSourceRanges associationsDo: [ :nodeAtRange |
+		self withRangesOf: nodeAtRange including: aPosition do: [ :aRange |
+			nodesWithRangeAtPosition add: (nodeAtRange key -> aRange) ] ].
+
+	^ nodesWithRangeAtPosition
+		ifEmpty: aBlockClosure
+		ifNotEmpty: [ nodesWithRangeAtPosition ]! !
+
+!AssignmentNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 00:51:11'!
+expandRanges: aSourceRange basedOn: sourceRanges
+
+	^ self expandRange: aSourceRange basedOn: (sourceRanges at: variable)! !
+
+!MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 00:50:26'!
+expandRanges: aSourceRange basedOn: sourceRanges
+
+	^ self expandRange: aSourceRange basedOn: (sourceRanges at: receiver)! !
+
+!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 00:44:05'!
+expandedSourceRanges
+
+	^ encoder expandedSourceRanges! !
+
+!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 00:44:08'!
+parseNodesPathAt: aPosition ifAbsent: aBlockClosure
+
+	^ encoder parseNodesPathAt: aPosition ifAbsent: aBlockClosure! !
 
 !SmalltalkEditor methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/17/2019 08:20:04'!
 extractMethod

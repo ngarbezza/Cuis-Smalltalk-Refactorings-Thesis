@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3741] on 23 May 2019 at 1:30:25 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3771] on 26 May 2019 at 12:55:23 am'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 3!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 4!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -273,8 +273,8 @@ test13IntervalToExtractShouldBeAValidSmalltalkExpression
 		creationOnInterval: intervalToExtract
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/13/2019 02:48:59'!
-test14OriginalCodeShouldNotEndUpWIthSyntaxErrors
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/25/2019 21:16:38'!
+test14ItIsNotPossibleToExtractTheLeftSideOfAnAssignment
 
 	| firstOccurrence secondOccurrence intervalToExtract |
 	firstOccurrence _ self sourceCodeOfMethodToExtractCodeFrom
