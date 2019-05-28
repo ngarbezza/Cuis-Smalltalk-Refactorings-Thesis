@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3771] on 26 May 2019 at 12:55:23 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3771] on 28 May 2019 at 12:05:16 am'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 4!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 5!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -86,7 +86,7 @@ selectorOfMethodToExtractCodeFrom
 
 	^ #mExtractMethodExample:! !
 
-!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/23/2019 01:06:15'!
+!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/27/2019 23:27:15'!
 sourceCodeOfMethodToExtractCodeFrom
 
 	^ self selectorOfMethodToExtractCodeFrom, ' anArgument
@@ -96,7 +96,7 @@ sourceCodeOfMethodToExtractCodeFrom
 	<anotherAnnoyingPragma>
 	self m1.
 	self m2: ''hey true''.
-	self m3: anArgument.
+	self m3: anArgument , ''^ 21''.
 	localVar := #($x $y $z) size.
 	^ localVar + 4'! !
 
@@ -175,6 +175,26 @@ test15ExtractingAListOfStatementsCreatesANewMethodWithoutReturn
 	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
 
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 5/27/2019 23:27:42'!
+test17AStringContainingTheReturnCharacterCanBeExtracted
+	"this is to make sure the return is found using AST logic, not by text"
+
+	| newSelector codeToExtract intervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
+	newSelector _ #newMethod.
+	codeToExtract _
+	'''^ 21'''.
+	intervalToExtract _ self sourceCodeOfMethodToExtractCodeFrom intervalOfSubCollection: codeToExtract.
+	sourceCodeOfNewMethod _ newSelector asString , '
+
+	^ ' , codeToExtract.
+	originalSelector _ self selectorOfMethodToExtractCodeFrom.
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: intervalToExtract to: newSelector.
+
+	self applyExtractMethodOf: intervalToExtract to: newSelector on: #category.
+
+	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
+	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
+
 !ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/4/2019 22:40:07'!
 test01NewSelectorShouldNotBeEmpty
 
@@ -224,14 +244,14 @@ test07IntervalToExtractIsNotAfterMethodSourceCodeBoundaries
 		creationOnInterval: (1 to: self sourceCodeOfMethodToExtractCodeFrom size + 2)
 		failsWith: ExtractMethod outOfBoundsSelectionErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/12/2019 23:30:12'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/27/2019 23:26:26'!
 test08IntervalToExtractShouldNotContainAReturnExpression
 
 	| intervalToExtract |
 	intervalToExtract  _ self sourceCodeOfMethodToExtractCodeFrom intervalOfSubCollection: '^ localVar + 4'.
 	self
 		creationOnInterval: intervalToExtract
-		failsWith: ExtractMethod returnInSourceToExtractErrorMessage! !
+		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
 
 !ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/12/2019 23:42:02'!
 test10IntervalToExtractDoesNotContainsPartOfTheOriginalSelector
