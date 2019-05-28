@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3771] on 28 May 2019 at 12:05:14 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3771] on 28 May 2019 at 1:01:13 am'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 5!
+!provides: 'Refactorings-ExtractMethod' 1 6!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -44,6 +44,16 @@ Object subclass: #ExtractMethodEditorMenu
 ExtractMethodEditorMenu class
 	instanceVariableNames: ''!
 
+!classDefinition: #ExtractMethodIntervalTrimmer category: #'Refactorings-ExtractMethod'!
+Object subclass: #ExtractMethodIntervalTrimmer
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'Refactorings-ExtractMethod'!
+!classDefinition: 'ExtractMethodIntervalTrimmer class' category: #'Refactorings-ExtractMethod'!
+ExtractMethodIntervalTrimmer class
+	instanceVariableNames: ''!
+
 
 !ExtractMethod methodsFor: 'initialization' stamp: 'RNG 5/8/2019 23:39:59'!
 initializeFrom: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector in: aCategory 
@@ -74,21 +84,21 @@ defineExtractedMethod
 		compile: self newMethodSourceCode
 		classified: categoryOfNewSelector! !
 
-!ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/13/2019 03:13:20'!
+!ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/28/2019 00:32:43'!
 newMethodSourceCode
 
 	| extractedSource parseNode return |
-	extractedSource _ sourceMethod sourceCode copyFrom: intervalToExtract first to: intervalToExtract last - 1.
+	extractedSource _ sourceMethod sourceCode copyFrom: intervalToExtract first to: intervalToExtract last.
 	parseNode _ Parser parse: extractedSource class: sourceMethod methodClass noPattern: true.
 	return _ parseNode block statements size = 1 ifTrue: [ '^ ' ] ifFalse: [ '' ].
 	^ newSelector asString , String lfString , String lfString , String tab , return , extractedSource! !
 
-!ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/7/2019 00:12:04'!
+!ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/28/2019 00:35:18'!
 updatedSourceCodeOfExistingMethod
 
 	^ sourceMethod sourceCode
 		copyReplaceFrom: intervalToExtract first
-		to: intervalToExtract last - 1
+		to: intervalToExtract last
 		with: 'self ', newSelector asString! !
 
 !ExtractMethod class methodsFor: 'instance creation' stamp: 'RNG 5/8/2019 23:39:31'!
@@ -148,28 +158,25 @@ interval: anIntervalToExtract isBeginningOfStatementIn: parseNodePath
 
 	^ parseNodePath last value first = anIntervalToExtract first! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/26/2019 00:36:10'!
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/28/2019 00:21:55'!
 interval: anIntervalToExtract isEndOfStatementIn: parseNodePath
 
-	^ parseNodePath last value last = (anIntervalToExtract last - 1)! !
+	^ parseNodePath last value last = anIntervalToExtract last! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/26/2019 00:34:20'!
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/28/2019 00:46:14'!
 interval: anIntervalToExtract of: sourceCode containsCompleteAstNodeOn: parseNodeOne and: parseNodeTwo
 
-	| actualInterval |
-	actualInterval _ parseNodeOne value.
-
+	| actualInterval trimmedFirstInterval |
 	"workaround for literals that have an extra space on the source range beginning"
-	[ (sourceCode at: actualInterval first) isSeparator ]
-		whileTrue: [ actualInterval _ actualInterval first + 1 to: actualInterval last ].
-	actualInterval _ actualInterval first to: parseNodeTwo value last + 1.
+	trimmedFirstInterval _ ExtractMethodIntervalTrimmer trim: parseNodeOne value accordingTo: sourceCode.
+	actualInterval _ trimmedFirstInterval first to: parseNodeTwo value last.
 
 	^ actualInterval = anIntervalToExtract! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 4/28/2019 23:52:09'!
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/28/2019 00:22:21'!
 is: anIntervalToExtract withinBoundsOf: aSourceCode
 
-	^ anIntervalToExtract first >= 1 and: [ anIntervalToExtract last - 1 <= aSourceCode size ]! !
+	^ anIntervalToExtract first >= 1 and: [ anIntervalToExtract last <= aSourceCode size ]! !
 
 !ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/27/2019 23:48:10'!
 isLeftSideOfAssignment: parseNodeOnePath
@@ -184,14 +191,13 @@ isNotLeftSideOfAssignmentFrom: parseNodeOnePath to: parseNodeTwoPath
 	^ (parseNodeOnePath first key = parseNodeTwoPath first key and:
 		[ self isLeftSideOfAssignment: parseNodeOnePath]) not! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/27/2019 23:54:32'!
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/28/2019 00:22:43'!
 method: aMethod containsAValidExpressionOn: anIntervalToExtract
 
-	| last methodNode parseNodeOne parseNodeTwo firstNode secondNode parseNodeOnePath parseNodeTwoPath |
-	last  _ anIntervalToExtract last - 1.
+	| methodNode parseNodeOne parseNodeTwo firstNode secondNode parseNodeOnePath parseNodeTwoPath |
 	methodNode _ aMethod methodNode.
 	parseNodeOnePath  _ methodNode parseNodesPathAt: anIntervalToExtract first ifAbsent: [ ^ false].
-	parseNodeTwoPath _ methodNode parseNodesPathAt: last ifAbsent: [ ^ false ].
+	parseNodeTwoPath _ methodNode parseNodesPathAt: anIntervalToExtract last ifAbsent: [ ^ false ].
 	
 	parseNodeOne _ parseNodeOnePath first.
 	parseNodeTwo _ parseNodeTwoPath first.
@@ -205,13 +211,12 @@ method: aMethod containsAValidExpressionOn: anIntervalToExtract
 			:: or: [ self interval: anIntervalToExtract isBeginningOfStatementIn: parseNodeOnePath
 				:: and: [ self interval: anIntervalToExtract isEndOfStatementIn: parseNodeTwoPath ] ] ]! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/27/2019 23:58:42'!
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/28/2019 00:23:00'!
 sharesParentNodeCoveredBy: anIntervalToExtract for: parseNodeOnePath and: parseNodeTwoPath
 
 	| parseNodesInCommon |
 	parseNodesInCommon _ parseNodeOnePath intersection: parseNodeTwoPath.
-	^ parseNodesInCommon notEmpty and: [
-		parseNodesInCommon first value = (anIntervalToExtract first to: (anIntervalToExtract last - 1)) ]! !
+	^ parseNodesInCommon notEmpty and: [ parseNodesInCommon first value = anIntervalToExtract ]! !
 
 !ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/28/2019 00:04:00'!
 thereAreNoReturnExpressionsIn: anIntervalToExtract of: aMethodNode
@@ -257,14 +262,16 @@ assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: anIntervalToExtract
 		ensure: anIntervalToExtract
 		isValidIntervalOn: aMethodToExtractCodeFrom! !
 
-!ExtractMethodApplier class methodsFor: 'instance creation' stamp: 'RNG 5/13/2019 02:32:10'!
+!ExtractMethodApplier class methodsFor: 'instance creation' stamp: 'RNG 5/28/2019 00:40:13'!
 for: anIntervalToExtract of: aMethodToExtractCodeFrom
 
-	| intervalToExtract |
-	intervalToExtract _ anIntervalToExtract first to: anIntervalToExtract last + 1.
-	self assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: intervalToExtract.
+	| trimmedIntervalToExtract sourceCode |
+	sourceCode _ aMethodToExtractCodeFrom sourceCode.
+	trimmedIntervalToExtract _ ExtractMethodIntervalTrimmer trim: anIntervalToExtract accordingTo: sourceCode.
+	
+	self assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: trimmedIntervalToExtract.
 
-	^ self new initializeFor: intervalToExtract of: aMethodToExtractCodeFrom! !
+	^ self new initializeFor: trimmedIntervalToExtract of: aMethodToExtractCodeFrom! !
 
 !ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating' stamp: 'RNG 4/18/2019 16:02:13'!
 value
@@ -389,6 +396,17 @@ smalltalkEditorMenuOptions
 		} asDictionary
 	}`! !
 
+!ExtractMethodIntervalTrimmer class methodsFor: 'evaluating' stamp: 'RNG 5/28/2019 00:42:57'!
+trim: anInterval accordingTo: sourceCode
+
+	| trimmedInterval |
+	trimmedInterval _ anInterval.
+	[ (sourceCode at: trimmedInterval first) isSeparator ]
+		whileTrue: [ trimmedInterval _ trimmedInterval first + 1 to: trimmedInterval last ].
+	[ (sourceCode at: trimmedInterval last) isSeparator ]
+		whileTrue: [ trimmedInterval _ trimmedInterval first to: trimmedInterval last - 1 ].
+	^ trimmedInterval! !
+
 !ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 01:44:50'!
 expandRange: aSourceRange basedOn: sourceRangesOfChildNode
 
@@ -456,8 +474,11 @@ parseNodesPathAt: aPosition ifAbsent: aBlockClosure
 
 	^ encoder parseNodesPathAt: aPosition ifAbsent: aBlockClosure! !
 
-!SmalltalkEditor methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/17/2019 08:20:04'!
+!SmalltalkEditor methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/28/2019 00:59:01'!
 extractMethod
+
+	"hack to prevent the extract method to be evaluated on editors w/o methods like the workspace"
+	(self codeProvider respondsTo: #currentCompiledMethod) ifFalse: [ ^ nil ].
 
 	morph owningWindow okToChange ifTrue: [
 		ExtractMethodApplier createAndValueHandlingExceptions: [
