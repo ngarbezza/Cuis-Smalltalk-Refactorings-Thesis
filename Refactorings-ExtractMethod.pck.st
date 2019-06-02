@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3779] on 2 June 2019 at 7:04:44 pm'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3779] on 2 June 2019 at 7:23:01 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 7!
+!provides: 'Refactorings-ExtractMethod' 1 8!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -287,14 +287,13 @@ for: anIntervalToExtract of: aMethodToExtractCodeFrom
 
 	^ self new initializeFor: trimmedIntervalToExtract of: aMethodToExtractCodeFrom! !
 
-!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating' stamp: 'RNG 4/18/2019 16:02:13'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating' stamp: 'RNG 6/2/2019 19:19:30'!
 value
 
 	self
 		assertNewSelectorIsNotEmpty;
 		assertNewSelectorDoesNotContainSeparators;
-		assertNewSelectorDoesNotStartWithANumber;
-		assertNewSelectorDoesNotStartWithAnUppercaseLetter;
+		assertNewSelectorBeginsWithAValidCharacter;
 		assertNewSelectorIsNotAlreadyDefinedInTheClass! !
 
 !ExtractMethodNewSelectorPrecondition methodsFor: 'initialization' stamp: 'RNG 4/18/2019 16:04:44'!
@@ -302,6 +301,11 @@ initializeFor: aSelectorToValidate on: aClassToDefineSelector
 
 	selectorToValidate _ aSelectorToValidate.
 	classToDefineSelector _ aClassToDefineSelector! !
+
+!ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 6/2/2019 19:20:09'!
+signalNewSelectorBeginsWithAnInvalidCharacter
+
+	self refactoringError: self class invalidStartingCharacterOfNewSelectorErrorMessage! !
 
 !ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 4/18/2019 15:11:55'!
 signalNewSelectorCanNotBeEmptyError
@@ -313,38 +317,22 @@ signalNewSelectorCanNotContainSeparatorsError
 
 	self refactoringError: self class newSelectorCanNotContainSeparatorsErrorMessage! !
 
-!ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 5/5/2019 12:22:34'!
-signalNewSelectorCanNotStartWithANumberError
-
-	self refactoringError: self class newSelectorCanNotStartWithANumberErrorMessage! !
-
-!ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 4/18/2019 15:41:13'!
-signalNewSelectorCanNotStartWithAnUppercaseLetterError
-
-	self refactoringError: self class newSelectorCanNotStartWithAnUppercaseLetterErrorMessage! !
-
 !ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 5/5/2019 12:22:40'!
 signalNewSelectorIsAlreadyDefinedInTheClassError
 
 	self refactoringError: self class newSelectorAlreadyDefinedOnTheClassErrorMessage! !
+
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 6/2/2019 19:21:50'!
+assertNewSelectorBeginsWithAValidCharacter
+
+	selectorToValidate first isValidStartOfIdentifiers 
+		ifFalse: [ self signalNewSelectorBeginsWithAnInvalidCharacter ]! !
 
 !ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 4/18/2019 15:13:52'!
 assertNewSelectorDoesNotContainSeparators
 
 	(selectorToValidate anySatisfy: [ :character | character isSeparator ])
 		ifTrue: [ self signalNewSelectorCanNotContainSeparatorsError ]! !
-
-!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 5/5/2019 12:23:28'!
-assertNewSelectorDoesNotStartWithANumber
-
-	selectorToValidate first isDigit
-		ifTrue: [ self signalNewSelectorCanNotStartWithANumberError ]! !
-
-!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 5/5/2019 12:23:23'!
-assertNewSelectorDoesNotStartWithAnUppercaseLetter
-	
-	selectorToValidate first isUppercase
-		ifTrue: [ self signalNewSelectorCanNotStartWithAnUppercaseLetterError ]! !
 
 !ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 5/5/2019 12:23:12'!
 assertNewSelectorIsNotAlreadyDefinedInTheClass
@@ -356,6 +344,11 @@ assertNewSelectorIsNotAlreadyDefinedInTheClass
 assertNewSelectorIsNotEmpty
 
 	selectorToValidate ifEmpty: [ self signalNewSelectorCanNotBeEmptyError ]! !
+
+!ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 6/2/2019 19:18:14'!
+invalidStartingCharacterOfNewSelectorErrorMessage
+
+	^ 'New selector should begin with a lowercase letter or _'! !
 
 !ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:58:58'!
 newSelectorAlreadyDefinedOnTheClassErrorMessage
@@ -371,16 +364,6 @@ newSelectorCanNotBeEmptyErrorMessage
 newSelectorCanNotContainSeparatorsErrorMessage
 
 	^ 'New selector can not contain separators'! !
-
-!ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:34:30'!
-newSelectorCanNotStartWithANumberErrorMessage
-
-	^ 'New selector can not start with a number'! !
-
-!ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 4/18/2019 15:41:13'!
-newSelectorCanNotStartWithAnUppercaseLetterErrorMessage
-
-	^ 'New selector can not start with an uppercase letter'! !
 
 !ExtractMethodNewSelectorPrecondition class methodsFor: 'instance creation' stamp: 'RNG 4/18/2019 16:01:43'!
 for: aSelectorToValidate on: aClass 

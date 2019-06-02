@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3779] on 2 June 2019 at 7:04:47 pm'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3779] on 2 June 2019 at 7:23:02 pm'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 7!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 8!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -264,19 +264,19 @@ test03NewSelectorShouldNotBeAlreadyDefinedInTheClass
 		creationWithSelectorNamed: self selectorOfMethodToExtractCodeFrom
 		failsWith: ExtractMethodNewSelectorPrecondition newSelectorAlreadyDefinedOnTheClassErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/5/2019 12:19:39'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 6/2/2019 19:17:39'!
 test04NewSelectorShouldNotStartWithANumber
 
 	self
 		creationWithSelectorNamed: #'2selector'
-		failsWith: ExtractMethodNewSelectorPrecondition newSelectorCanNotStartWithANumberErrorMessage! !
+		failsWith: ExtractMethodNewSelectorPrecondition invalidStartingCharacterOfNewSelectorErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/5/2019 12:19:49'!
-test05NewSelectorShouldNotStartWithAnUppercaseLetter
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 6/2/2019 19:22:36'!
+test05NewUnarySelectorShouldNotStartWithASymbol
 
 	self
-		creationWithSelectorNamed: #TheSelector
-		failsWith: ExtractMethodNewSelectorPrecondition newSelectorCanNotStartWithAnUppercaseLetterErrorMessage! !
+		creationWithSelectorNamed: #-
+		failsWith: ExtractMethodNewSelectorPrecondition invalidStartingCharacterOfNewSelectorErrorMessage! !
 
 !ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/5/2019 12:20:04'!
 test06IntervalToExtractIsNotBeforeMethodSourceCodeBoundaries
