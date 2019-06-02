@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3771] on 28 May 2019 at 1:01:13 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3779] on 2 June 2019 at 7:04:44 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 6!
+!provides: 'Refactorings-ExtractMethod' 1 7!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -101,15 +101,18 @@ updatedSourceCodeOfExistingMethod
 		to: intervalToExtract last
 		with: 'self ', newSelector asString! !
 
-!ExtractMethod class methodsFor: 'instance creation' stamp: 'RNG 5/8/2019 23:39:31'!
+!ExtractMethod class methodsFor: 'instance creation' stamp: 'RNG 6/2/2019 18:56:51'!
 fromInterval: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector categorizedAs: aCategory 
 
+	| trimmedIntervalToExtract |
+	trimmedIntervalToExtract _ ExtractMethodIntervalTrimmer
+		trim: anIntervalToExtract locatedIn: aMethodToExtractCodeFrom sourceCode.
 	self
 		ensure: aNewSelector canBeDefinedIn: aMethodToExtractCodeFrom methodClass;
-		ensure: anIntervalToExtract isValidIntervalOn: aMethodToExtractCodeFrom.
+		ensure: trimmedIntervalToExtract isValidIntervalOn: aMethodToExtractCodeFrom.
 
 	^ self new
-		initializeFrom: anIntervalToExtract
+		initializeFrom: trimmedIntervalToExtract
 		of: aMethodToExtractCodeFrom
 		to: aNewSelector
 		in: aCategory! !
@@ -163,12 +166,12 @@ interval: anIntervalToExtract isEndOfStatementIn: parseNodePath
 
 	^ parseNodePath last value last = anIntervalToExtract last! !
 
-!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 5/28/2019 00:46:14'!
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 6/2/2019 18:56:51'!
 interval: anIntervalToExtract of: sourceCode containsCompleteAstNodeOn: parseNodeOne and: parseNodeTwo
 
 	| actualInterval trimmedFirstInterval |
 	"workaround for literals that have an extra space on the source range beginning"
-	trimmedFirstInterval _ ExtractMethodIntervalTrimmer trim: parseNodeOne value accordingTo: sourceCode.
+	trimmedFirstInterval _ ExtractMethodIntervalTrimmer trim: parseNodeOne value locatedIn: sourceCode.
 	actualInterval _ trimmedFirstInterval first to: parseNodeTwo value last.
 
 	^ actualInterval = anIntervalToExtract! !
@@ -241,8 +244,19 @@ askNewSelector
 
 	newSelector _ (self request: 'New method name:') asSymbol! !
 
-!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 5/13/2019 02:20:11'!
+!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 5/29/2019 00:27:12'!
 requestRefactoringParameters
+
+	| parseNodesIncluded |
+	parseNodesIncluded _ Set new.
+	methodToExtractCodeFrom methodNode rawSourceRanges keysAndValuesDo: [ :parseNode :sourceRangeOrRanges |
+		| parseNodeIncluded |
+		parseNodeIncluded _ sourceRangeOrRanges isInterval
+			ifTrue: [ intervalToExtract includes: sourceRangeOrRanges first ]
+			ifFalse: [ sourceRangeOrRanges anySatisfy: [ :sourceRange | intervalToExtract includes: sourceRange first ] ].
+		parseNodeIncluded and: [ parseNode isTempOrArg ] :: ifTrue: [ parseNodesIncluded add: parseNode ]
+	].
+	self inform: 'arguments: ' , parseNodesIncluded printString.
 
 	self askNewSelector! !
 
@@ -262,12 +276,12 @@ assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: anIntervalToExtract
 		ensure: anIntervalToExtract
 		isValidIntervalOn: aMethodToExtractCodeFrom! !
 
-!ExtractMethodApplier class methodsFor: 'instance creation' stamp: 'RNG 5/28/2019 00:40:13'!
+!ExtractMethodApplier class methodsFor: 'instance creation' stamp: 'RNG 6/2/2019 18:56:51'!
 for: anIntervalToExtract of: aMethodToExtractCodeFrom
 
 	| trimmedIntervalToExtract sourceCode |
 	sourceCode _ aMethodToExtractCodeFrom sourceCode.
-	trimmedIntervalToExtract _ ExtractMethodIntervalTrimmer trim: anIntervalToExtract accordingTo: sourceCode.
+	trimmedIntervalToExtract _ ExtractMethodIntervalTrimmer trim: anIntervalToExtract locatedIn: sourceCode.
 	
 	self assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: trimmedIntervalToExtract.
 
@@ -396,14 +410,48 @@ smalltalkEditorMenuOptions
 		} asDictionary
 	}`! !
 
-!ExtractMethodIntervalTrimmer class methodsFor: 'evaluating' stamp: 'RNG 5/28/2019 00:42:57'!
-trim: anInterval accordingTo: sourceCode
+!ExtractMethodIntervalTrimmer class methodsFor: 'private' stamp: 'RNG 6/2/2019 18:55:29'!
+charactersThatCanBeTrimmedAtTheBeginning
+
+	^ `#( $. $( )`! !
+
+!ExtractMethodIntervalTrimmer class methodsFor: 'private' stamp: 'RNG 6/2/2019 18:55:44'!
+charactersThatCanBeTrimmedAtTheEnd
+
+	^ `#( $. $) )`! !
+
+!ExtractMethodIntervalTrimmer class methodsFor: 'private' stamp: 'RNG 6/2/2019 18:55:55'!
+shouldTrim: sourceCode atBeginningOf: trimmedInterval
+
+	^ self
+		shouldTrim: sourceCode
+		atIndex: trimmedInterval first
+		considering: self charactersThatCanBeTrimmedAtTheBeginning! !
+
+!ExtractMethodIntervalTrimmer class methodsFor: 'private' stamp: 'RNG 6/2/2019 18:56:17'!
+shouldTrim: sourceCode atEndOf: trimmedInterval
+
+	^ self
+		shouldTrim: sourceCode
+		atIndex: trimmedInterval last
+		considering: self charactersThatCanBeTrimmedAtTheEnd! !
+
+!ExtractMethodIntervalTrimmer class methodsFor: 'private' stamp: 'RNG 6/2/2019 18:54:18'!
+shouldTrim: sourceCode atIndex: currentIndex considering: charactersThatCanBeTrimmed
+
+	| currentChar |
+	currentChar _ sourceCode at: currentIndex ifAbsent: [ ^ false ].
+	^ currentChar isSeparator or: [ charactersThatCanBeTrimmed includes: currentChar ]
+! !
+
+!ExtractMethodIntervalTrimmer class methodsFor: 'evaluating' stamp: 'RNG 6/2/2019 18:57:24'!
+trim: anInterval locatedIn: sourceCode
 
 	| trimmedInterval |
 	trimmedInterval _ anInterval.
-	[ (sourceCode at: trimmedInterval first) isSeparator ]
+	[ self shouldTrim: sourceCode atBeginningOf: trimmedInterval ]
 		whileTrue: [ trimmedInterval _ trimmedInterval first + 1 to: trimmedInterval last ].
-	[ (sourceCode at: trimmedInterval last) isSeparator ]
+	[ self shouldTrim: sourceCode atEndOf: trimmedInterval ]
 		whileTrue: [ trimmedInterval _ trimmedInterval first to: trimmedInterval last - 1 ].
 	^ trimmedInterval! !
 

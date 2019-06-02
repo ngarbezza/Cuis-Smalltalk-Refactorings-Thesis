@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3771] on 28 May 2019 at 1:01:16 am'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3779] on 2 June 2019 at 7:04:47 pm'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 6!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 7!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -86,7 +86,7 @@ selectorOfMethodToExtractCodeFrom
 
 	^ #mExtractMethodExample:! !
 
-!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/27/2019 23:27:15'!
+!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 6/2/2019 18:45:44'!
 sourceCodeOfMethodToExtractCodeFrom
 
 	^ self selectorOfMethodToExtractCodeFrom, ' anArgument
@@ -98,7 +98,7 @@ sourceCodeOfMethodToExtractCodeFrom
 	self m2: ''hey true''.
 	self m3: anArgument , ''^ 21''.
 	localVar := #($x $y $z) size.
-	^ localVar + 4'! !
+	^ localVar + ((4))'! !
 
 !ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/28/2019 00:36:15'!
 updatedSourceCodeAfterExtracting: anInterval to: newSelector
@@ -200,6 +200,49 @@ test17AStringContainingTheReturnCharacterCanBeExtracted
 	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
 
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/2/2019 18:40:06'!
+test18ExtractingAListOfStatementsIncludingDotsRemovesThemAndContinuesWithMethodExtraction
+
+	| newSelector codeToExtract intervalToExtract actualIntervalToExtract sourceCodeOfNewMethod updatedSourceCodeOfOriginalMethod expectedExtractedCode |
+	newSelector _ #newMethod.
+	codeToExtract _
+	'
+	self m1.
+	self m2: ''hey true''.'.
+	expectedExtractedCode _ "trimmed initial enter and space, and ending dot"
+	'self m1.
+	self m2: ''hey true'''.
+	intervalToExtract _ self intervalOfCode: codeToExtract.
+	actualIntervalToExtract _ self intervalOfCode: expectedExtractedCode.
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: actualIntervalToExtract to: newSelector.
+	sourceCodeOfNewMethod _ newSelector asString , '
+
+	' , expectedExtractedCode.
+
+	self applyExtractMethodOf: intervalToExtract to: newSelector on: #category.
+
+	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
+	self assertClassHasDefined: self selectorOfMethodToExtractCodeFrom withBody: updatedSourceCodeOfOriginalMethod! !
+
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/2/2019 18:58:36'!
+test19ASelectionContainingAdditionalParenthesesAtTheBeginningAndOrEndCanBeExtracted
+
+	| newSelector codeToExtract intervalToExtract expectedIntervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
+	newSelector _ #newMethod.
+	codeToExtract _ '((4))'.
+	intervalToExtract _ self intervalOfCode: codeToExtract.
+	expectedIntervalToExtract _ self intervalOfCode: '4'.
+	sourceCodeOfNewMethod _ newSelector asString , '
+
+	^ 4'.
+	originalSelector _ self selectorOfMethodToExtractCodeFrom.
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: expectedIntervalToExtract to: newSelector.
+
+	self applyExtractMethodOf: intervalToExtract to: newSelector on: #category.
+
+	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
+	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
+
 !ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/4/2019 22:40:07'!
 test01NewSelectorShouldNotBeEmpty
 
@@ -249,48 +292,41 @@ test07IntervalToExtractIsNotAfterMethodSourceCodeBoundaries
 		creationOnInterval: (1 to: self sourceCodeOfMethodToExtractCodeFrom size + 2)
 		failsWith: ExtractMethod outOfBoundsSelectionErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/28/2019 00:31:26'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 6/2/2019 18:59:22'!
 test08IntervalToExtractShouldNotContainAReturnExpression
 
 	self
-		creationOnInterval: (self intervalOfCode: '^ localVar + 4')
+		creationOnInterval: (self intervalOfCode: '^ localVar + ((4))')
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/12/2019 23:42:02'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 6/2/2019 18:07:07'!
 test10IntervalToExtractDoesNotContainsPartOfTheOriginalSelector
 
 	| intervalToExtract |
-	intervalToExtract  _ self sourceCodeOfMethodToExtractCodeFrom
-		intervalOfSubCollection: self selectorOfMethodToExtractCodeFrom asString.
+	intervalToExtract  _ self intervalOfCode: self selectorOfMethodToExtractCodeFrom asString.
 	self
 		creationOnInterval: intervalToExtract
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/13/2019 00:03:19'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 6/2/2019 18:06:21'!
 test11IntervalToExtractDoesNotContainsPartOfLocalVariablesDefinition
 
-	| intervalToExtract |
-	intervalToExtract  _ self sourceCodeOfMethodToExtractCodeFrom
-		intervalOfSubCollection: '| localVar |'.
 	self
-		creationOnInterval: intervalToExtract
+		creationOnInterval: (self intervalOfCode: '| localVar |')
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/13/2019 01:17:49'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 6/2/2019 18:06:35'!
 test12IntervalToExtractDoesNotContainsPartOfPragmasDefinition
 
-	| intervalToExtract |
-	intervalToExtract  _ self sourceCodeOfMethodToExtractCodeFrom
-		intervalOfSubCollection: '<anotherAnnoyingPragma>'.
 	self
-		creationOnInterval: intervalToExtract
+		creationOnInterval: (self intervalOfCode: '<anotherAnnoyingPragma>')
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/28/2019 00:38:14'!
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 6/2/2019 18:59:26'!
 test13IntervalToExtractShouldBeAValidSmalltalkExpression
 
 	self
-		creationOnInterval: (self intervalOfCode: '+ 4')
+		creationOnInterval: (self intervalOfCode: '+ ((4))')
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
 
 !ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/25/2019 21:16:38'!
