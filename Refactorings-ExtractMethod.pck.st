@@ -1,12 +1,12 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3805] on 23 June 2019 at 7:02:51 pm'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3805] on 23 June 2019 at 8:45:15 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 9!
+!provides: 'Refactorings-ExtractMethod' 1 10!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
 !classDefinition: #ExtractMethod category: #'Refactorings-ExtractMethod'!
 Refactoring subclass: #ExtractMethod
-	instanceVariableNames: 'intervalToExtract sourceMethod categoryOfNewSelector newMessage extractedSourceCode'
+	instanceVariableNames: 'intervalToExtract categoryOfNewSelector newMessage extractedSourceCode existingMethod'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Refactorings-ExtractMethod'!
@@ -16,7 +16,7 @@ ExtractMethod class
 
 !classDefinition: #ExtractMethodApplier category: #'Refactorings-ExtractMethod'!
 RefactoringApplier subclass: #ExtractMethodApplier
-	instanceVariableNames: 'intervalToExtract methodToExtractCodeFrom newSelector'
+	instanceVariableNames: 'intervalToExtract methodToExtractCodeFrom newSelector newMessageArguments'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Refactorings-ExtractMethod'!
@@ -55,18 +55,18 @@ ExtractMethodIntervalTrimmer class
 	instanceVariableNames: ''!
 
 
-!ExtractMethod methodsFor: 'initialization' stamp: 'RNG 6/23/2019 18:58:06'!
+!ExtractMethod methodsFor: 'initialization' stamp: 'RNG 6/23/2019 20:29:44'!
 initializeExtractedSourceCode
 
-	extractedSourceCode _ sourceMethod sourceCode
+	extractedSourceCode _ existingMethod sourceCode
 		copyFrom: intervalToExtract first
 		to: intervalToExtract last! !
 
-!ExtractMethod methodsFor: 'initialization' stamp: 'RNG 6/23/2019 18:57:20'!
+!ExtractMethod methodsFor: 'initialization' stamp: 'RNG 6/23/2019 20:29:44'!
 initializeFrom: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewMessage in: aCategory 
 
 	intervalToExtract _ anIntervalToExtract.
-	sourceMethod _ aMethodToExtractCodeFrom.
+	existingMethod _ aMethodToExtractCodeFrom.
 	newMessage _ aNewMessage.
 	categoryOfNewSelector _ aCategory.
 	self initializeExtractedSourceCode.! !
@@ -78,24 +78,24 @@ apply
 		defineExtractedMethod;
 		changeExistingMethod! !
 
-!ExtractMethod methodsFor: 'applying' stamp: 'RNG 5/8/2019 23:34:19'!
+!ExtractMethod methodsFor: 'applying' stamp: 'RNG 6/23/2019 20:29:44'!
 changeExistingMethod
 
-	sourceMethod methodClass
+	self sourceClass
 		compile: self updatedSourceCodeOfExistingMethod
-		classified: sourceMethod category! !
+		classified: existingMethod category! !
 
-!ExtractMethod methodsFor: 'applying' stamp: 'RNG 5/8/2019 23:40:24'!
+!ExtractMethod methodsFor: 'applying' stamp: 'RNG 6/23/2019 20:25:44'!
 defineExtractedMethod
 
- 	sourceMethod methodClass
+ 	self sourceClass
 		compile: self newMethodSourceCode
 		classified: categoryOfNewSelector! !
 
-!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 18:52:12'!
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 19:57:48'!
 newMessageString
 
-	^ newMessage selector asString! !
+	^ newMessage fullName! !
 
 !ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 18:59:07'!
 newMethodSourceCode
@@ -105,17 +105,22 @@ newMethodSourceCode
 	, self returnCharacterIfNeeded
 	, extractedSourceCode! !
 
-!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 18:58:06'!
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 20:26:40'!
 returnCharacterIfNeeded
 
 	| parseNode |
-	parseNode _ Parser parse: extractedSourceCode class: sourceMethod methodClass noPattern: true.
+	parseNode _ Parser parse: extractedSourceCode class: self sourceClass noPattern: true.
 	^ parseNode block statements size = 1 ifTrue: [ '^ ' ] ifFalse: [ '' ]! !
 
-!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 18:52:12'!
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 20:29:44'!
+sourceClass
+
+	^ existingMethod methodClass! !
+
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 20:29:44'!
 updatedSourceCodeOfExistingMethod
 
-	^ sourceMethod sourceCode
+	^ existingMethod sourceCode
 		copyReplaceFrom: intervalToExtract first
 		to: intervalToExtract last
 		with: 'self ', self newMessageString! !
@@ -249,44 +254,83 @@ thereAreNoReturnExpressionsIn: anIntervalToExtract of: aMethodNode
 			:: ifTrue: [ ^ false ] ].
 	^ true! !
 
-!ExtractMethodApplier methodsFor: 'refactoring - creation' stamp: 'RNG 6/23/2019 18:51:07'!
+!ExtractMethodApplier methodsFor: 'initialization' stamp: 'RNG 6/23/2019 19:08:58'!
+initializeFor: anIntervalToExtract of: aMethodToExtractCodeFrom
+
+	intervalToExtract _ anIntervalToExtract.
+	methodToExtractCodeFrom _ aMethodToExtractCodeFrom.
+	newMessageArguments _ Dictionary new! !
+
+!ExtractMethodApplier methodsFor: 'refactoring - changes' stamp: 'RNG 5/13/2019 02:17:27'!
+showChanges! !
+
+!ExtractMethodApplier methodsFor: 'refactoring - creation' stamp: 'RNG 6/23/2019 20:11:34'!
 createRefactoring
 
 	^ ExtractMethod
 		fromInterval: intervalToExtract
 		of: methodToExtractCodeFrom
-		to: (Message selector: newSelector)
+		to: self buildNewMessage
 		categorizedAs: methodToExtractCodeFrom category! !
 
-!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 5/13/2019 02:21:23'!
-askNewSelector
+!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 6/23/2019 20:20:59'!
+askEachCorrespondingKeywordFor: parseNodesIncluded
+
+	parseNodesIncluded do: [ :parseNode | self askKeywordNameFor: parseNode ]! !
+
+!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 6/23/2019 19:08:42'!
+askKeywordNameFor: aParseNodeToBeParameterized
+
+	| keyword |
+	keyword _ (self request: 'Keyword for: ' , aParseNodeToBeParameterized name) asSymbol.
+	newMessageArguments at: keyword put: aParseNodeToBeParameterized.! !
+
+!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 6/23/2019 20:19:59'!
+askNewUnarySelector
 
 	newSelector _ (self request: 'New method name:') asSymbol! !
 
-!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 6/23/2019 17:56:39'!
+!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 6/23/2019 20:19:59'!
 requestRefactoringParameters
 
 	| parseNodesIncluded |
-	parseNodesIncluded _ Set new.
+	parseNodesIncluded _ self parseNodesToParameterize.
+	parseNodesIncluded
+		ifEmpty: [ self askNewUnarySelector ]
+		ifNotEmpty: [ self askEachCorrespondingKeywordFor: parseNodesIncluded ]! !
+
+!ExtractMethodApplier methodsFor: 'private - new message' stamp: 'RNG 6/23/2019 19:12:14'!
+buildNewKeywordSelector
+
+	^ ('' join: newMessageArguments keys) asSymbol! !
+
+!ExtractMethodApplier methodsFor: 'private - new message' stamp: 'RNG 6/23/2019 20:11:34'!
+buildNewMessage
+
+	| selector argumentNames |
+	selector _ newSelector ifNotNil: [ newSelector ] ifNil: [ self buildNewKeywordSelector ].
+	argumentNames _ newMessageArguments values collect: [ :parseNode | parseNode name ].
+	^ Message selector: selector arguments: argumentNames! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 6/23/2019 20:18:23'!
+parseNodesToParameterize
+
+	| parseNodesFound |
+	parseNodesFound _ OrderedCollection new.
 	methodToExtractCodeFrom methodNode rawSourceRanges keysAndValuesDo: [ :parseNode :sourceRangeOrRanges |
-		| parseNodeIncluded |
-		parseNodeIncluded _ sourceRangeOrRanges isInterval
-			ifTrue: [ intervalToExtract includes: sourceRangeOrRanges first ]
-			ifFalse: [ sourceRangeOrRanges anySatisfy: [ :sourceRange | intervalToExtract includes: sourceRange first ] ].
-		parseNodeIncluded and: [ parseNode isTempOrArg ] :: ifTrue: [ parseNodesIncluded add: parseNode ]
+		(self shouldBeParameterized: parseNode appearingIn: sourceRangeOrRanges)
+			ifTrue: [ parseNodesFound add: parseNode ]
 	].
-	self halt.
+	^ parseNodesFound! !
 
-	self askNewSelector! !
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 6/23/2019 20:19:05'!
+shouldBeParameterized: parseNode appearingIn: sourceRangeOrRanges
 
-!ExtractMethodApplier methodsFor: 'refactoring - changes' stamp: 'RNG 5/13/2019 02:17:27'!
-showChanges! !
-
-!ExtractMethodApplier methodsFor: 'initialization' stamp: 'RNG 5/13/2019 02:32:19'!
-initializeFor: anIntervalToExtract of: aMethodToExtractCodeFrom
-
-	intervalToExtract _ anIntervalToExtract.
-	methodToExtractCodeFrom _ aMethodToExtractCodeFrom! !
+	| parseNodeWithinIntervalToExtract |
+	parseNodeWithinIntervalToExtract _ sourceRangeOrRanges isInterval
+		ifTrue: [ intervalToExtract includes: sourceRangeOrRanges first ]
+		ifFalse: [ sourceRangeOrRanges anySatisfy: [ :sourceRange | intervalToExtract includes: sourceRange first ] ].
+	^ parseNodeWithinIntervalToExtract and: [ parseNode isTempOrArg ]! !
 
 !ExtractMethodApplier class methodsFor: 'pre-conditions' stamp: 'RNG 5/13/2019 02:06:39'!
 assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: anIntervalToExtract
@@ -456,6 +500,24 @@ trim: anInterval locatedIn: sourceCode
 	[ self shouldTrim: sourceCode atEndOf: trimmedInterval ]
 		whileTrue: [ trimmedInterval _ trimmedInterval first to: trimmedInterval last - 1 ].
 	^ trimmedInterval! !
+
+!Message methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 6/23/2019 20:03:36'!
+fullName
+
+	^ String streamContents: [ :messageStream |
+		args
+			ifEmpty: [ messageStream nextPutAll: selector ]
+			ifNotEmpty: [
+				self selector keywords withIndexDo: [ :keyword :index |
+					messageStream
+						nextPutAll: keyword;
+						nextPut:  Character space;
+						nextPutAll: (args at: index).
+					"add an space unless it's the last keyword"
+					index = self selector keywords size ifFalse: [ messageStream nextPut: Character space ]
+				]
+			].
+		]! !
 
 !ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 01:44:50'!
 expandRange: aSourceRange basedOn: sourceRangesOfChildNode
