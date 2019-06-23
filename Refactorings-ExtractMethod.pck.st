@@ -1,12 +1,12 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3779] on 2 June 2019 at 7:23:01 pm'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3805] on 23 June 2019 at 7:02:51 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 8!
+!provides: 'Refactorings-ExtractMethod' 1 9!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
 !classDefinition: #ExtractMethod category: #'Refactorings-ExtractMethod'!
 Refactoring subclass: #ExtractMethod
-	instanceVariableNames: 'intervalToExtract sourceMethod newSelector categoryOfNewSelector'
+	instanceVariableNames: 'intervalToExtract sourceMethod categoryOfNewSelector newMessage extractedSourceCode'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Refactorings-ExtractMethod'!
@@ -55,13 +55,21 @@ ExtractMethodIntervalTrimmer class
 	instanceVariableNames: ''!
 
 
-!ExtractMethod methodsFor: 'initialization' stamp: 'RNG 5/8/2019 23:39:59'!
-initializeFrom: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector in: aCategory 
+!ExtractMethod methodsFor: 'initialization' stamp: 'RNG 6/23/2019 18:58:06'!
+initializeExtractedSourceCode
+
+	extractedSourceCode _ sourceMethod sourceCode
+		copyFrom: intervalToExtract first
+		to: intervalToExtract last! !
+
+!ExtractMethod methodsFor: 'initialization' stamp: 'RNG 6/23/2019 18:57:20'!
+initializeFrom: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewMessage in: aCategory 
 
 	intervalToExtract _ anIntervalToExtract.
 	sourceMethod _ aMethodToExtractCodeFrom.
-	newSelector _ aNewSelector.
-	categoryOfNewSelector _ aCategory! !
+	newMessage _ aNewMessage.
+	categoryOfNewSelector _ aCategory.
+	self initializeExtractedSourceCode.! !
 
 !ExtractMethod methodsFor: 'applying' stamp: 'RNG 4/29/2019 00:45:18'!
 apply
@@ -84,37 +92,48 @@ defineExtractedMethod
 		compile: self newMethodSourceCode
 		classified: categoryOfNewSelector! !
 
-!ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/28/2019 00:32:43'!
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 18:52:12'!
+newMessageString
+
+	^ newMessage selector asString! !
+
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 18:59:07'!
 newMethodSourceCode
 
-	| extractedSource parseNode return |
-	extractedSource _ sourceMethod sourceCode copyFrom: intervalToExtract first to: intervalToExtract last.
-	parseNode _ Parser parse: extractedSource class: sourceMethod methodClass noPattern: true.
-	return _ parseNode block statements size = 1 ifTrue: [ '^ ' ] ifFalse: [ '' ].
-	^ newSelector asString , String lfString , String lfString , String tab , return , extractedSource! !
+	^ self newMessageString
+	, String lfString , String lfString , String tab
+	, self returnCharacterIfNeeded
+	, extractedSourceCode! !
 
-!ExtractMethod methodsFor: 'source code' stamp: 'RNG 5/28/2019 00:35:18'!
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 18:58:06'!
+returnCharacterIfNeeded
+
+	| parseNode |
+	parseNode _ Parser parse: extractedSourceCode class: sourceMethod methodClass noPattern: true.
+	^ parseNode block statements size = 1 ifTrue: [ '^ ' ] ifFalse: [ '' ]! !
+
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 18:52:12'!
 updatedSourceCodeOfExistingMethod
 
 	^ sourceMethod sourceCode
 		copyReplaceFrom: intervalToExtract first
 		to: intervalToExtract last
-		with: 'self ', newSelector asString! !
+		with: 'self ', self newMessageString! !
 
-!ExtractMethod class methodsFor: 'instance creation' stamp: 'RNG 6/2/2019 18:56:51'!
-fromInterval: anIntervalToExtract of: aMethodToExtractCodeFrom to: aNewSelector categorizedAs: aCategory 
+!ExtractMethod class methodsFor: 'instance creation' stamp: 'RNG 6/23/2019 18:24:36'!
+fromInterval: anIntervalToExtract of: aMethodToExtractCodeFrom to: newMessage categorizedAs: aCategory 
 
 	| trimmedIntervalToExtract |
 	trimmedIntervalToExtract _ ExtractMethodIntervalTrimmer
 		trim: anIntervalToExtract locatedIn: aMethodToExtractCodeFrom sourceCode.
 	self
-		ensure: aNewSelector canBeDefinedIn: aMethodToExtractCodeFrom methodClass;
+		ensure: newMessage selector canBeDefinedIn: aMethodToExtractCodeFrom methodClass;
 		ensure: trimmedIntervalToExtract isValidIntervalOn: aMethodToExtractCodeFrom.
 
 	^ self new
 		initializeFrom: trimmedIntervalToExtract
 		of: aMethodToExtractCodeFrom
-		to: aNewSelector
+		to: newMessage
 		in: aCategory! !
 
 !ExtractMethod class methodsFor: 'validations' stamp: 'RNG 5/4/2019 22:40:07'!
@@ -230,13 +249,13 @@ thereAreNoReturnExpressionsIn: anIntervalToExtract of: aMethodNode
 			:: ifTrue: [ ^ false ] ].
 	^ true! !
 
-!ExtractMethodApplier methodsFor: 'refactoring - creation' stamp: 'RNG 5/13/2019 02:17:03'!
+!ExtractMethodApplier methodsFor: 'refactoring - creation' stamp: 'RNG 6/23/2019 18:51:07'!
 createRefactoring
 
 	^ ExtractMethod
 		fromInterval: intervalToExtract
 		of: methodToExtractCodeFrom
-		to: newSelector
+		to: (Message selector: newSelector)
 		categorizedAs: methodToExtractCodeFrom category! !
 
 !ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 5/13/2019 02:21:23'!
@@ -244,7 +263,7 @@ askNewSelector
 
 	newSelector _ (self request: 'New method name:') asSymbol! !
 
-!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 5/29/2019 00:27:12'!
+!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 6/23/2019 17:56:39'!
 requestRefactoringParameters
 
 	| parseNodesIncluded |
@@ -256,7 +275,7 @@ requestRefactoringParameters
 			ifFalse: [ sourceRangeOrRanges anySatisfy: [ :sourceRange | intervalToExtract includes: sourceRange first ] ].
 		parseNodeIncluded and: [ parseNode isTempOrArg ] :: ifTrue: [ parseNodesIncluded add: parseNode ]
 	].
-	self inform: 'arguments: ' , parseNodesIncluded printString.
+	self halt.
 
 	self askNewSelector! !
 

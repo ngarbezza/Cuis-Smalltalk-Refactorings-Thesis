@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3779] on 2 June 2019 at 7:23:02 pm'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3805] on 23 June 2019 at 7:02:53 pm'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 8!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 9!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -8,7 +8,7 @@ SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
 
 !classDefinition: #ExtractMethodTest category: #'Tests-Refactorings-ExtractMethod'!
 RefactoringTest subclass: #ExtractMethodTest
-	instanceVariableNames: 'classToRefactor'
+	instanceVariableNames: 'classToRefactor newSelector newMessage'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Tests-Refactorings-ExtractMethod'!
@@ -17,18 +17,18 @@ ExtractMethodTest class
 	instanceVariableNames: ''!
 
 
-!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 4/29/2019 00:30:56'!
-assertClassHasDefined: newSelector withBody: newSourceCode
+!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 6/23/2019 18:30:13'!
+assertClassHasDefined: aSelector withBody: newSourceCode
 
 	self
-		assert: (classToRefactor >> newSelector) sourceCode
+		assert: (classToRefactor >> aSelector) sourceCode
 		equals: newSourceCode! !
 
-!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 5/8/2019 23:34:49'!
-assertClassHasDefined: newSelector withBody: newSourceCode inCategory: aCategory
+!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 6/23/2019 18:30:02'!
+assertClassHasDefined: aSelector withBody: newSourceCode inCategory: aCategory
 
-	self assertClassHasDefined: newSelector withBody: newSourceCode.
-	self assert: aCategory equals: (classToRefactor >> newSelector) category! !
+	self assertClassHasDefined: aSelector withBody: newSourceCode.
+	self assert: aCategory equals: (classToRefactor >> aSelector) category! !
 
 !ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 5/12/2019 23:20:10'!
 creationOnInterval: anIntervalToExtract failsWith: aRefactoringErrorMessage
@@ -48,7 +48,7 @@ creationWithSelectorNamed: aSelectorName failsWith: aRefactoringErrorMessage
 		ofMethod: self methodToExtractCodeFrom
 		failsWith: aRefactoringErrorMessage! !
 
-!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 5/12/2019 23:20:47'!
+!ExtractMethodTest methodsFor: 'assertions' stamp: 'RNG 6/23/2019 18:21:38'!
 creationWithSelectorNamed: aSelectorName onInterval: anIntervalToExtract ofMethod: methodToExtractCodeFrom failsWith: aRefactoringErrorMessage
 
 	self
@@ -56,7 +56,7 @@ creationWithSelectorNamed: aSelectorName onInterval: anIntervalToExtract ofMetho
 			ExtractMethod
 				fromInterval: anIntervalToExtract
 				of: methodToExtractCodeFrom
-				to: aSelectorName
+				to: (Message selector: aSelectorName)
 				categorizedAs: Categorizer default ]
 		raise: Error - MessageNotUnderstood
 		withMessageText: aRefactoringErrorMessage! !
@@ -81,6 +81,13 @@ methodToExtractCodeFrom
 
 	^ classToRefactor >> self selectorOfMethodToExtractCodeFrom! !
 
+!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 6/23/2019 18:38:59'!
+newMethodDefinitionWith: newSourceCode
+
+	^ newSelector asString , '
+
+	' , newSourceCode! !
+
 !ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/12/2019 23:25:05'!
 selectorOfMethodToExtractCodeFrom
 
@@ -100,35 +107,32 @@ sourceCodeOfMethodToExtractCodeFrom
 	localVar := #($x $y $z) size.
 	^ localVar + ((4))'! !
 
-!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/28/2019 00:36:15'!
-updatedSourceCodeAfterExtracting: anInterval to: newSelector
+!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 6/23/2019 18:33:05'!
+updatedSourceCodeAfterExtracting: anInterval 
 
 	^ self sourceCodeOfMethodToExtractCodeFrom
 		copyReplaceFrom: anInterval first
 		to: anInterval last
 		with: 'self ' , newSelector asString! !
 
-!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 5/28/2019 00:36:23'!
-updatedSourceCodeAfterExtractingTo: newSelector
+!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 6/23/2019 18:33:05'!
+updatedSourceCodeAfterExtractingNewMethod
 
-	^ self updatedSourceCodeAfterExtracting: self intervalToExtractFromMethod to: newSelector! !
+	^ self updatedSourceCodeAfterExtracting: self intervalToExtractFromMethod ! !
 
-!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 5/13/2019 02:58:10'!
-applyExtractMethodOf: anInterval to: newSelector on: aCategory 
+!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 6/23/2019 18:37:17'!
+applyExtractMethodOf: anInterval on: aCategory 
 
 	(ExtractMethod
 		fromInterval: anInterval
 		of: self methodToExtractCodeFrom
-		to: newSelector
+		to: newMessage
 		categorizedAs: aCategory) apply! !
 
-!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 5/13/2019 02:58:43'!
-applyExtractMethodTo: newSelector on: aCategory
+!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 6/23/2019 18:34:56'!
+applyExtractMethodOn: aCategory
 
-	self
-		applyExtractMethodOf: self intervalToExtractFromMethod
-		to: newSelector
-		on: aCategory! !
+	self applyExtractMethodOf: self intervalToExtractFromMethod on: aCategory! !
 
 !ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 5/28/2019 00:32:05'!
 intervalOfCode: aPieceOfSourceCode
@@ -137,74 +141,65 @@ intervalOfCode: aPieceOfSourceCode
 	interval _ self sourceCodeOfMethodToExtractCodeFrom intervalOfSubCollection: aPieceOfSourceCode.
 	^ interval first to: interval last - 1! !
 
-!ExtractMethodTest methodsFor: 'set up' stamp: 'RNG 5/12/2019 23:21:15'!
+!ExtractMethodTest methodsFor: 'set up' stamp: 'RNG 6/23/2019 18:37:17'!
 setUp
 
 	super setUp.
 	classToRefactor _ self createClassNamed: self classToRefactorName.
-	self compileMethodToExtractCodeFrom.! !
+	self compileMethodToExtractCodeFrom.
+	newMessage _ Message selector: #newMethod.
+	newSelector _ newMessage selector! !
 
-!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 5/12/2019 23:32:19'!
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/23/2019 18:38:59'!
 test09ExtractingALiteralCreatesANewMethodAndChangesExistingCodeToCallThatNewMethod
 
-	| newSelector sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
-	newSelector _ #newMethod.
-	sourceCodeOfNewMethod _ newSelector asString , '
-
-	^ 4'.
+	| sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
+	sourceCodeOfNewMethod _ self newMethodDefinitionWith: '^ 4'.
 	originalSelector _ self selectorOfMethodToExtractCodeFrom.
-	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtractingTo: newSelector.
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtractingNewMethod.
 
-	self applyExtractMethodTo: newSelector on: #category.
+	self applyExtractMethodOn: #category.
 
 	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
 
-!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 5/28/2019 00:31:39'!
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/23/2019 18:39:18'!
 test15ExtractingAListOfStatementsCreatesANewMethodWithoutReturn
 
-	| newSelector codeToExtract intervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
-	newSelector _ #newMethod.
+	| codeToExtract intervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
 	codeToExtract _
 	'self m1.
 	self m2: ''hey true'''.
 	intervalToExtract _ self intervalOfCode: codeToExtract.
-	sourceCodeOfNewMethod _ newSelector asString , '
-
-	' , codeToExtract.
+	sourceCodeOfNewMethod _ self newMethodDefinitionWith: codeToExtract.
 	originalSelector _ self selectorOfMethodToExtractCodeFrom.
-	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: intervalToExtract to: newSelector.
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: intervalToExtract .
 
-	self applyExtractMethodOf: intervalToExtract to: newSelector on: #category.
+	self applyExtractMethodOf: intervalToExtract on: #category.
 
 	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
 
-!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 5/28/2019 00:31:52'!
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/23/2019 18:41:38'!
 test17AStringContainingTheReturnCharacterCanBeExtracted
 	"this is to make sure the return is found using AST logic, not by text"
 
-	| newSelector codeToExtract intervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
-	newSelector _ #newMethod.
-	codeToExtract _
-	'''^ 21'''.
+	| codeToExtract intervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
+	codeToExtract _ '''^ 21'''.
 	intervalToExtract _ self intervalOfCode: codeToExtract.
-	sourceCodeOfNewMethod _ newSelector asString , '
-
-	^ ' , codeToExtract.
+	sourceCodeOfNewMethod _ self newMethodDefinitionWith: '^ ' , codeToExtract.
 	originalSelector _ self selectorOfMethodToExtractCodeFrom.
-	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: intervalToExtract to: newSelector.
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: intervalToExtract .
 
-	self applyExtractMethodOf: intervalToExtract to: newSelector on: #category.
+	self applyExtractMethodOf: intervalToExtract on: #category.
 
 	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
 
-!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/2/2019 18:40:06'!
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/23/2019 18:39:55'!
 test18ExtractingAListOfStatementsIncludingDotsRemovesThemAndContinuesWithMethodExtraction
 
-	| newSelector codeToExtract intervalToExtract actualIntervalToExtract sourceCodeOfNewMethod updatedSourceCodeOfOriginalMethod expectedExtractedCode |
-	newSelector _ #newMethod.
+	| codeToExtract intervalToExtract actualIntervalToExtract sourceCodeOfNewMethod updatedSourceCodeOfOriginalMethod expectedExtractedCode |
 	codeToExtract _
 	'
 	self m1.
@@ -214,31 +209,26 @@ test18ExtractingAListOfStatementsIncludingDotsRemovesThemAndContinuesWithMethodE
 	self m2: ''hey true'''.
 	intervalToExtract _ self intervalOfCode: codeToExtract.
 	actualIntervalToExtract _ self intervalOfCode: expectedExtractedCode.
-	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: actualIntervalToExtract to: newSelector.
-	sourceCodeOfNewMethod _ newSelector asString , '
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: actualIntervalToExtract .
+	sourceCodeOfNewMethod _ self newMethodDefinitionWith: expectedExtractedCode.
 
-	' , expectedExtractedCode.
-
-	self applyExtractMethodOf: intervalToExtract to: newSelector on: #category.
+	self applyExtractMethodOf: intervalToExtract on: #category.
 
 	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: self selectorOfMethodToExtractCodeFrom withBody: updatedSourceCodeOfOriginalMethod! !
 
-!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/2/2019 18:58:36'!
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/23/2019 18:40:10'!
 test19ASelectionContainingAdditionalParenthesesAtTheBeginningAndOrEndCanBeExtracted
 
-	| newSelector codeToExtract intervalToExtract expectedIntervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
-	newSelector _ #newMethod.
+	| codeToExtract intervalToExtract expectedIntervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
 	codeToExtract _ '((4))'.
 	intervalToExtract _ self intervalOfCode: codeToExtract.
 	expectedIntervalToExtract _ self intervalOfCode: '4'.
-	sourceCodeOfNewMethod _ newSelector asString , '
-
-	^ 4'.
+	sourceCodeOfNewMethod _ self newMethodDefinitionWith: '^ 4'.
 	originalSelector _ self selectorOfMethodToExtractCodeFrom.
-	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: expectedIntervalToExtract to: newSelector.
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: expectedIntervalToExtract .
 
-	self applyExtractMethodOf: intervalToExtract to: newSelector on: #category.
+	self applyExtractMethodOf: intervalToExtract on: #category.
 
 	self assertClassHasDefined: newSelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
