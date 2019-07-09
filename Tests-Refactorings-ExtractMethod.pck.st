@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3805] on 23 June 2019 at 8:45:19 pm'!
+'From Cuis 5.0 of 7 November 2016 [latest update: #3805] on 9 July 2019 at 4:10:46 pm'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 10!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 11!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -98,7 +98,7 @@ selectorOfMethodToExtractCodeFrom
 
 	^ #mExtractMethodExample:! !
 
-!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 6/2/2019 18:45:44'!
+!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 7/6/2019 19:24:17'!
 sourceCodeOfMethodToExtractCodeFrom
 
 	^ self selectorOfMethodToExtractCodeFrom, ' anArgument
@@ -109,7 +109,7 @@ sourceCodeOfMethodToExtractCodeFrom
 	self m1.
 	self m2: ''hey true''.
 	self m3: anArgument , ''^ 21''.
-	localVar := #($x $y $z) size.
+	localVar := #($x $y $z) size and: [ (9) * 3 ].
 	^ localVar + ((4))'! !
 
 !ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 6/23/2019 19:47:39'!
@@ -130,17 +130,13 @@ updatedSourceCodeAfterExtractingNewMethod
 
 	^ self updatedSourceCodeAfterExtracting: self intervalToExtractFromMethod ! !
 
-!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 6/23/2019 19:24:36'!
+!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 7/7/2019 23:42:34'!
 applyExtractMethodOf: anInterval on: aCategory 
 
-	(ExtractMethod
-		fromInterval: anInterval
-		of: self methodToExtractCodeFrom
-		to: newUnaryMessage
-		categorizedAs: aCategory) apply! !
+	self applyExtractMethodOf: anInterval to: newUnaryMessage on: aCategory! !
 
-!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 6/23/2019 19:26:28'!
-applyExtractMethodOf: anInterval to: newMessage on: aCategory 
+!ExtractMethodTest methodsFor: 'refactoring helpers' stamp: 'RNG 7/7/2019 23:42:22'!
+applyExtractMethodOf: anInterval to: newMessage on: aCategory
 
 	(ExtractMethod
 		fromInterval: anInterval
@@ -252,7 +248,7 @@ test19ASelectionContainingAdditionalParenthesesAtTheBeginningAndOrEndCanBeExtrac
 	self assertClassHasDefined: newUnarySelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
 
-!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/23/2019 19:57:15'!
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 6/23/2019 21:15:08'!
 test20ASelectionContainingALocalVariableIsParameterizedOnTheExtractedMessage
 
 	| codeToExtract intervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod newMessage |
@@ -266,6 +262,21 @@ test20ASelectionContainingALocalVariableIsParameterizedOnTheExtractedMessage
 	self applyExtractMethodOf: intervalToExtract to: newMessage on: #category.
 
 	self assertClassHasDefined: newMessage selector withBody: sourceCodeOfNewMethod inCategory: #category.
+	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
+
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 7/6/2019 19:24:29'!
+test21ASelectionContainingAdditionalParenthesesOnOneSideCanBeExtractedAndItIsNotTrimmed
+
+	| codeToExtract intervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
+	codeToExtract _ '(9) * 3'.
+	intervalToExtract _ self intervalOfCode: codeToExtract.
+	sourceCodeOfNewMethod _ self newMethodDefinitionWith: '^ ', codeToExtract.
+	originalSelector _ self selectorOfMethodToExtractCodeFrom.
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: intervalToExtract.
+
+	self applyExtractMethodOf: intervalToExtract on: #category.
+
+	self assertClassHasDefined: newUnarySelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
 
 !ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/4/2019 22:40:07'!
