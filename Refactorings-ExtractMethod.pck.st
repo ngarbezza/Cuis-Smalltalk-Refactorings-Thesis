@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3805] on 9 July 2019 at 4:10:15 pm'!
+'From Cuis 5.0 [latest update: #3866] on 7 September 2019 at 7:27:58 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 11!
+!provides: 'Refactorings-ExtractMethod' 1 12!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -156,13 +156,20 @@ ensure: aSelector canBeDefinedIn: aClass
 
 	ExtractMethodNewSelectorPrecondition valueFor: aSelector on: aClass! !
 
-!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 5/28/2019 00:02:12'!
+!ExtractMethod class methodsFor: 'validations' stamp: 'RNG 9/7/2019 19:23:53'!
 ensure: anIntervalToExtract isValidIntervalOn: aMethodToExtractCodeFrom 
 
+	self isNotEmpty: anIntervalToExtract
+		:: ifFalse: [ self signalNoSelectedCodeError ].
 	self is: anIntervalToExtract withinBoundsOf: aMethodToExtractCodeFrom sourceCode
 		:: ifFalse: [ self signalOutOfBoundsIntervalError ].
 	self method: aMethodToExtractCodeFrom containsAValidExpressionOn: anIntervalToExtract
 		:: ifFalse: [ self signalSelectedCodeIsInvalidForExtractError ].! !
+
+!ExtractMethod class methodsFor: 'error messages' stamp: 'RNG 9/7/2019 19:20:33'!
+noSelectionErrorMessage
+
+	^ 'Please select some code for extraction'! !
 
 !ExtractMethod class methodsFor: 'error messages' stamp: 'RNG 4/20/2019 21:53:45'!
 outOfBoundsSelectionErrorMessage
@@ -173,6 +180,11 @@ outOfBoundsSelectionErrorMessage
 selectedCodeInvalidForExtractErrorMessage
 
 	^ 'The selected code can not be extracted to a method'! !
+
+!ExtractMethod class methodsFor: 'exceptions' stamp: 'RNG 9/7/2019 19:24:57'!
+signalNoSelectedCodeError
+
+	self refactoringError: self noSelectionErrorMessage! !
 
 !ExtractMethod class methodsFor: 'exceptions' stamp: 'RNG 4/20/2019 21:53:24'!
 signalOutOfBoundsIntervalError
@@ -188,6 +200,11 @@ signalSelectedCodeIsInvalidForExtractError
 is: anIntervalToExtract withinBoundsOf: aSourceCode
 
 	^ anIntervalToExtract first >= 1 and: [ anIntervalToExtract last <= aSourceCode size ]! !
+
+!ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 9/7/2019 19:26:15'!
+isNotEmpty: anInterval 
+
+	^ anInterval first <= anInterval last! !
 
 !ExtractMethod class methodsFor: 'validations - private' stamp: 'RNG 7/6/2019 20:06:09'!
 method: aMethod containsAValidExpressionOn: anIntervalToExtract
@@ -396,7 +413,7 @@ smalltalkEditorMenuOptions
 		} asDictionary
 	}`! !
 
-!ExtractMethodExpressionValidation methodsFor: 'validation' stamp: 'RNG 7/9/2019 16:06:27'!
+!ExtractMethodExpressionValidation methodsFor: 'validation' stamp: 'RNG 9/7/2019 19:25:38'!
 passed
 
 	methodNode _ method methodNode.

@@ -1,6 +1,6 @@
-'From Cuis 5.0 of 7 November 2016 [latest update: #3805] on 9 July 2019 at 4:10:46 pm'!
+'From Cuis 5.0 [latest update: #3866] on 7 September 2019 at 7:28:00 pm'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 11!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 12!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -279,6 +279,21 @@ test21ASelectionContainingAdditionalParenthesesOnOneSideCanBeExtractedAndItIsNot
 	self assertClassHasDefined: newUnarySelector withBody: sourceCodeOfNewMethod inCategory: #category.
 	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
 
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 9/7/2019 19:27:09'!
+test22ItIsPossibleToExtractTheLastExpressionOfAMethod
+
+	| codeToExtract intervalToExtract sourceCodeOfNewMethod originalSelector updatedSourceCodeOfOriginalMethod |
+	codeToExtract _ 'localVar + ((4))'.
+	intervalToExtract _ self intervalOfCode: codeToExtract.
+	sourceCodeOfNewMethod _ self newMethodDefinitionWith: '^ ', codeToExtract.
+	originalSelector _ self selectorOfMethodToExtractCodeFrom.
+	updatedSourceCodeOfOriginalMethod _ self updatedSourceCodeAfterExtracting: intervalToExtract.
+
+	self applyExtractMethodOf: intervalToExtract on: #category.
+
+	self assertClassHasDefined: newUnarySelector withBody: sourceCodeOfNewMethod inCategory: #category.
+	self assertClassHasDefined: originalSelector withBody: updatedSourceCodeOfOriginalMethod! !
+
 !ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 5/4/2019 22:40:07'!
 test01NewSelectorShouldNotBeEmpty
 
@@ -384,3 +399,10 @@ test16CanNotExtractPartOfALiteral
 	self
 		creationOnInterval: (self intervalOfCode: 'true')
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 9/7/2019 19:17:47'!
+test23CanNotExtractWithAnInvalidInterval
+
+	self
+		creationOnInterval: (10 to: 9)
+		failsWith: ExtractMethod noSelectionErrorMessage! !
