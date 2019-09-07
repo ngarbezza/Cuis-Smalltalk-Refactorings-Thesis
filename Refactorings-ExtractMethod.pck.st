@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3866] on 7 September 2019 at 7:27:58 pm'!
+'From Cuis 5.0 [latest update: #3866] on 7 September 2019 at 8:19:24 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 12!
+!provides: 'Refactorings-ExtractMethod' 1 13!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -555,6 +555,17 @@ fullName
 			].
 		]! !
 
+!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 20:05:56'!
+expandIfEnclosedWithParentheses: sourceRange on: sourceCode
+
+	| startsWithParen endsWithParen |
+	self flag: #RNG. "take into account other cases: spaces in middle, multiple parenthesis"
+	startsWithParen _ (sourceCode at: sourceRange first - 1 ifAbsent: [nil]) = $(.
+	endsWithParen _ (sourceCode at: sourceRange last + 1 ifAbsent: [nil]) = $).
+	^ startsWithParen & endsWithParen
+		ifTrue: [ sourceRange first - 1 to: sourceRange last + 1 ]
+		ifFalse: [ sourceRange ]! !
+
 !ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 7/9/2019 15:55:40'!
 expandRange: aSourceRange basedOn: sourceRangesOfChildNode
 
@@ -566,30 +577,21 @@ expandRange: aSourceRange basedOn: sourceRangesOfChildNode
 			^ (aSourceRange first min: (intervals at: index - 1 ifAbsent: [ intervals last ]) first) to: aSourceRange last ] ].
 	^ (aSourceRange first min: intervals last first) to: aSourceRange last! !
 
-!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 00:45:37'!
-expandRanges: sourceRanges basedOn: allSourceRanges
+!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 19:54:22'!
+expandRanges: sourceRanges basedOn: allSourceRanges using: sourceCode
 
 	^ sourceRanges! !
 
-!Encoder methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/26/2019 00:38:01'!
-expandedSourceRanges
+!Encoder methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 19:58:40'!
+completeSourceRangesBasedOn: sourceCode
 
-	| expandedSourceRanges |
-	expandedSourceRanges _ Dictionary new.
+	| completeSourceRanges |
+	completeSourceRanges _ Dictionary new.
 	sourceRanges keysAndValuesDo: [ :parseNode :nodeRanges |
 		| expandedNodeSourceRanges |
-		expandedNodeSourceRanges _ parseNode expandRanges: nodeRanges basedOn: sourceRanges.
-		expandedSourceRanges at: parseNode put: expandedNodeSourceRanges ].
-	^ expandedSourceRanges! !
-
-!Encoder methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 7/9/2019 15:51:23'!
-expandedSourceRangesBasedOn: updatedSourceRanges
-
-	^ updatedSourceRanges keysAndValuesDo: [ :parseNode :nodeRanges |
-		updatedSourceRanges
-			at: parseNode
-			put: (parseNode expandRanges: nodeRanges basedOn: updatedSourceRanges)
-	]! !
+		expandedNodeSourceRanges _ parseNode expandRanges: nodeRanges basedOn: sourceRanges using: sourceCode.
+		completeSourceRanges at: parseNode put: expandedNodeSourceRanges ].
+	^ completeSourceRanges! !
 
 !Encoder methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 7/9/2019 11:14:09'!
 parseNodesPathAt: aPosition using: expandedSourceRanges ifAbsent: aBlockClosure
@@ -607,60 +609,37 @@ parseNodesPathAt: aPosition using: expandedSourceRanges ifAbsent: aBlockClosure
 		ifEmpty: aBlockClosure
 		ifNotEmpty: [ nodesWithRangeAtPosition ]! !
 
-!AssignmentNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 7/9/2019 15:49:56'!
-expandRanges: aSourceRange basedOn: sourceRanges
+!AssignmentNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 19:58:15'!
+expandRanges: aSourceRange basedOn: sourceRanges using: sourceCode
 
 	^ self
 		expandRange: (aSourceRange isInterval ifTrue: [ aSourceRange ] ifFalse: [ aSourceRange first ])
 		basedOn: (sourceRanges at: variable)! !
 
-!MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 7/9/2019 15:54:01'!
-expandRanges: aSourceRange basedOn: sourceRanges
+!MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 20:05:56'!
+expandRanges: aSourceRange basedOn: sourceRanges using: sourceCode
 
-	| receiverExpandedRanges |
+	| receiverExpandedRanges expandedRangeWithReceiver |
 	receiverExpandedRanges _ self isCascade
-		ifTrue: [ self flag: #todo . aSourceRange ] "fix source ranges for cascade messages"
-		ifFalse: [ receiver expandRanges: (sourceRanges at: receiver) basedOn: sourceRanges ].
-	^ self
+		ifTrue: [ self flag: #RNG . aSourceRange ] "fix source ranges for cascade messages"
+		ifFalse: [ receiver expandRanges: (sourceRanges at: receiver) basedOn: sourceRanges using: sourceCode ].
+	expandedRangeWithReceiver _ self
 		expandRange: (aSourceRange isInterval ifTrue: [ aSourceRange ] ifFalse: [ aSourceRange first ])
-		basedOn: receiverExpandedRanges! !
+		basedOn: receiverExpandedRanges.
+	^ self expandIfEnclosedWithParentheses: expandedRangeWithReceiver on: sourceCode! !
 
-!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 7/9/2019 15:44:04'!
-expandSourceRangesOfNodesEnclosedWithParens: sourceRanges on: sourceCode
+!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 20:00:55'!
+completeSourceRanges
+	"Returns the 'expanded' version of the source ranges, for instance in message sends it also includes the receiver, and if there are parentheses they are included in the source range as well. Right now used for refactorings."
 
-	^ sourceRanges collect: [ :sourceRange |
-		| startsWithParen endsWithParen |
-		startsWithParen _ (sourceCode at: sourceRange first - 1 ifAbsent: [nil]) = $(.
-		endsWithParen _ (sourceCode at: sourceRange last + 1 ifAbsent: [nil]) = $).
-		startsWithParen & endsWithParen
-			ifTrue: [ sourceRange first - 1 to: sourceRange last + 1 ]
-			ifFalse: [ sourceRange ]
-	]! !
+	^ encoder completeSourceRangesBasedOn: self sourceText! !
 
-!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 7/9/2019 15:48:03'!
-expandedSourceRanges
-	"Returns the 'expanded' version of the source ranges, for instance in message sends it also includes the receiver, and if there are parentheses they are included in the source range as well. Right now used for refactorings.
-	
-	It also consolidates the return type to be always a Dictionary where the key is a ParseNode and the value is an OrderedCollection regardless it contains a single or multiple ranges"
-
-	| finalSourceRanges sourceCode |
-	finalSourceRanges _ encoder expandedSourceRanges.
-	sourceCode _ self sourceText.
-	finalSourceRanges keysAndValuesDo: [ :parseNode :sourceRangeOrRanges |
-		finalSourceRanges at: parseNode put: (self
-			expandSourceRangesOfNodesEnclosedWithParens: (sourceRangeOrRanges isInterval
-				ifTrue: [ OrderedCollection with: sourceRangeOrRanges ]
-				ifFalse: [ sourceRangeOrRanges ])
-			on: sourceCode)
-	].
-	^ encoder expandedSourceRangesBasedOn: finalSourceRanges! !
-
-!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 7/9/2019 15:35:24'!
+!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 19:41:58'!
 parseNodesPathAt: aPosition ifAbsent: aBlockClosure
 
 	^ encoder
 		parseNodesPathAt: aPosition
-		using: self expandedSourceRanges
+		using: self completeSourceRanges
 		ifAbsent: aBlockClosure! !
 
 !SmalltalkEditor methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 5/28/2019 00:59:01'!
