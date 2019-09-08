@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3866] on 8 September 2019 at 7:18:46 pm'!
+'From Cuis 5.0 [latest update: #3866] on 8 September 2019 at 8:57:41 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 14!
+!provides: 'Refactorings-ExtractMethod' 1 15!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -230,64 +230,95 @@ createRefactoring
 		to: self buildNewMessage
 		categorizedAs: methodToExtractCodeFrom category! !
 
-!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 6/23/2019 20:20:59'!
-askEachCorrespondingKeywordFor: parseNodesIncluded
-
-	parseNodesIncluded do: [ :parseNode | self askKeywordNameFor: parseNode ]! !
-
-!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 6/23/2019 19:08:42'!
-askKeywordNameFor: aParseNodeToBeParameterized
-
-	| keyword |
-	keyword _ (self request: 'Keyword for: ' , aParseNodeToBeParameterized name) asSymbol.
-	newMessageArguments at: keyword put: aParseNodeToBeParameterized.! !
-
-!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 6/23/2019 20:19:59'!
-askNewUnarySelector
-
-	newSelector _ (self request: 'New method name:') asSymbol! !
-
-!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 6/23/2019 20:19:59'!
+!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 9/8/2019 20:07:03'!
 requestRefactoringParameters
 
-	| parseNodesIncluded |
-	parseNodesIncluded _ self parseNodesToParameterize.
-	parseNodesIncluded
-		ifEmpty: [ self askNewUnarySelector ]
-		ifNotEmpty: [ self askEachCorrespondingKeywordFor: parseNodesIncluded ]! !
+	| parseNodesToParameterize initialAnswer userAnswer |
+	parseNodesToParameterize _ self parseNodesToParameterize.
+	initialAnswer _ self buildInitialSelectorAnswer: parseNodesToParameterize.
+	userAnswer _ self request: 'New method name:' initialAnswer: initialAnswer withBlanksTrimmed.
 
-!ExtractMethodApplier methodsFor: 'private - new message' stamp: 'RNG 6/23/2019 19:12:14'!
-buildNewKeywordSelector
+	parseNodesToParameterize
+		ifEmpty: [ self saveUnarySelector: userAnswer ]
+		ifNotEmpty: [ self saveBinaryOrKeywordSelector: userAnswer withArguments: parseNodesToParameterize ]! !
 
-	^ ('' join: newMessageArguments keys) asSymbol! !
-
-!ExtractMethodApplier methodsFor: 'private - new message' stamp: 'RNG 6/23/2019 20:11:34'!
+!ExtractMethodApplier methodsFor: 'private - new message' stamp: 'RNG 9/8/2019 20:39:42'!
 buildNewMessage
 
-	| selector argumentNames |
-	selector _ newSelector ifNotNil: [ newSelector ] ifNil: [ self buildNewKeywordSelector ].
-	argumentNames _ newMessageArguments values collect: [ :parseNode | parseNode name ].
-	^ Message selector: selector arguments: argumentNames! !
+	^ Message
+		selector: newSelector
+		arguments: self newMessageArgumentNames! !
 
-!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 6/23/2019 20:18:23'!
+!ExtractMethodApplier methodsFor: 'private - new message' stamp: 'RNG 9/8/2019 20:39:33'!
+newMessageArgumentNames
+
+	^ newMessageArguments values collect: [ :parseNode | parseNode name ]! !
+
+!ExtractMethodApplier methodsFor: 'private - new message' stamp: 'RNG 9/8/2019 20:05:08'!
+saveUnarySelector: userAnswer
+
+	^ newSelector _ userAnswer asSymbol! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:04:17'!
+buildInitialSelectorAnswer: parseNodesToParameterize
+	"builds a selector with the shape of #m1: something m2: else"
+
+	^ parseNodesToParameterize
+		ifEmpty: [ 'm1' ]
+		ifNotEmpty: [ parseNodesToParameterize
+			inject: ''
+			into: [ :partialSelector :parseNode |
+				| currentKeyword |
+				currentKeyword _ 'm' , (parseNodesToParameterize indexOf: parseNode) asString , ': '.
+				partialSelector , currentKeyword, parseNode name , String newLineString ] ]! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:43:33'!
+definedInOuterScope: parseNode
+
+	self flag: #RNG. "this is not enough when extracting code inside a block that references block temps or args"
+	^ methodToExtractCodeFrom methodNode hasTemporaryOrArgumentNamed: parseNode name! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:40:11'!
 parseNodesToParameterize
 
 	| parseNodesFound |
 	parseNodesFound _ OrderedCollection new.
-	methodToExtractCodeFrom methodNode rawSourceRanges keysAndValuesDo: [ :parseNode :sourceRangeOrRanges |
+	methodToExtractCodeFrom methodNode completeSourceRanges keysAndValuesDo: [ :parseNode :sourceRangeOrRanges |
 		(self shouldBeParameterized: parseNode appearingIn: sourceRangeOrRanges)
 			ifTrue: [ parseNodesFound add: parseNode ]
 	].
 	^ parseNodesFound! !
 
-!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 6/23/2019 20:19:05'!
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:51:17'!
+saveBinaryOrKeywordSelector: userAnswer withArguments: parseNodesToParameterize
+
+	self saveMessageArgumentsForEach: parseNodesToParameterize using: userAnswer.
+	newSelector _ '' join: (self selectorTokensOf: userAnswer) :: asSymbol.! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:38:10'!
+saveMessageArgumentsForEach: parseNodesToParameterize using: userAnswer
+
+	| newSelectorKeywords |
+	newSelectorKeywords _ userAnswer keywords.
+	parseNodesToParameterize withIndexDo: [ :parseNode :index |
+		newMessageArguments at: (newSelectorKeywords at: index) put: parseNode ]! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:55:52'!
+selectorTokensOf: userAnswer
+	"this selects the pieces of strings before each $:"
+
+	^ (userAnswer findTokens: ':') allButLast
+		collect: [ :tok | (tok findTokens: Character separators) last , ':' ]! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:42:11'!
 shouldBeParameterized: parseNode appearingIn: sourceRangeOrRanges
 
 	| parseNodeWithinIntervalToExtract |
 	parseNodeWithinIntervalToExtract _ sourceRangeOrRanges isInterval
 		ifTrue: [ intervalToExtract includes: sourceRangeOrRanges first ]
 		ifFalse: [ sourceRangeOrRanges anySatisfy: [ :sourceRange | intervalToExtract includes: sourceRange first ] ].
-	^ parseNodeWithinIntervalToExtract and: [ parseNode isTempOrArg ]! !
+	^ parseNodeWithinIntervalToExtract and: [ parseNode isTempOrArg ]
+		:: and: [ self definedInOuterScope: parseNode ]! !
 
 !ExtractMethodApplier class methodsFor: 'pre-conditions' stamp: 'RNG 5/13/2019 02:06:39'!
 assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: anIntervalToExtract
@@ -354,7 +385,7 @@ assertNewSelectorDoesNotContainSeparators
 	(selectorToValidate anySatisfy: [ :character | character isSeparator ])
 		ifTrue: [ self signalNewSelectorCanNotContainSeparatorsError ]! !
 
-!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 5/5/2019 12:23:12'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 9/8/2019 20:49:51'!
 assertNewSelectorIsNotAlreadyDefinedInTheClass
 
 	(classToDefineSelector includesSelector: selectorToValidate)
@@ -395,19 +426,19 @@ valueFor: aSelectorToValidate on: aClass
 
 	^ (self for: aSelectorToValidate on: aClass) value! !
 
-!ExtractMethodEditorMenu class methodsFor: 'shortcuts' stamp: 'RNG 5/13/2019 01:25:03'!
+!ExtractMethodEditorMenu class methodsFor: 'shortcuts' stamp: 'RNG 9/8/2019 20:56:48'!
 smalltalkEditorCmdShortcutsSpec
 
-	^#(#($M #extractMethod: 'Extracts the selected code into a separate method'))! !
+	^#(#($K #extractMethod: 'Extracts the selected code into a separate method'))! !
 
-!ExtractMethodEditorMenu class methodsFor: 'menu items' stamp: 'RNG 5/13/2019 01:21:46'!
+!ExtractMethodEditorMenu class methodsFor: 'menu items' stamp: 'RNG 9/8/2019 20:56:43'!
 smalltalkEditorMenuOptions
 
 	^`{
 		{
 				#itemGroup 		-> 		35.
 				#itemOrder 		-> 		20.
-				#label 			-> 		'Extract Method... (M)'.
+				#label 			-> 		'Extract Method... (K)'.
 				#selector 		-> 		#extractMethod.
 				#icon 			-> 		#saveAsIcon
 		} asDictionary
@@ -636,6 +667,11 @@ isAssignmentToTemporary
 
 	^ self isAssignmentNode and: [ variable isTemp ]! !
 
+!VariableNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 20:46:04'!
+isNamed: aName
+
+	^ self name = aName! !
+
 !MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 20:05:56'!
 expandRanges: aSourceRange basedOn: sourceRanges using: sourceCode
 
@@ -669,6 +705,11 @@ completeSourceRanges
 	"Returns the 'expanded' version of the source ranges, for instance in message sends it also includes the receiver, and if there are parentheses they are included in the source range as well. Right now used for refactorings."
 
 	^ encoder completeSourceRangesBasedOn: self sourceText! !
+
+!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 20:46:33'!
+hasTemporaryOrArgumentNamed: aName
+
+	^ (temporaries union: arguments) anySatisfy: [ :temp | temp isNamed: aName ]! !
 
 !MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 19:41:58'!
 parseNodesPathAt: aPosition ifAbsent: aBlockClosure
