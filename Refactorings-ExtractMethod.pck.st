@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3866] on 7 September 2019 at 8:19:24 pm'!
+'From Cuis 5.0 [latest update: #3866] on 8 September 2019 at 7:18:46 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 13!
+!provides: 'Refactorings-ExtractMethod' 1 14!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -413,7 +413,7 @@ smalltalkEditorMenuOptions
 		} asDictionary
 	}`! !
 
-!ExtractMethodExpressionValidation methodsFor: 'validation' stamp: 'RNG 9/7/2019 19:25:38'!
+!ExtractMethodExpressionValidation methodsFor: 'validation' stamp: 'RNG 9/8/2019 18:42:38'!
 passed
 
 	methodNode _ method methodNode.
@@ -423,15 +423,18 @@ passed
 	initialNode _ initialNodeAncestors first.
 	finalNode _ finalNodeAncestors first.
 
-	^ self intervalCoversCompleteAstNodes and: [ self containsValidNodes ]
+	^ self intervalCoversCompleteAstNodes
+		:: and: [ self containsValidNodes ]
 		:: and: [ self startAndEndParseNodesAreTheSame
 			:: or: [ self startAndEndNodesShareAParentNode ]
 			:: or: [ self intervalMatchesBeginningOfStatement and: [ self intervalMatchesEndOfStatement ] ] ]! !
 
-!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 7/6/2019 20:38:22'!
+!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/8/2019 18:57:55'!
 containsValidNodes   
 
-	^ self isNotLeftSideOfAssignment and: [ self thereAreNoReturnExpressions ]! !
+	^ self isNotLeftSideOfAssignment
+		:: and: [ self thereAreNoLocalVariableAssignments ]
+		:: and: [ self thereAreNoReturnExpressions ]! !
 
 !ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 7/9/2019 16:07:20'!
 intervalCoversCompleteAstNodes 
@@ -484,14 +487,19 @@ startAndEndParseNodesAreTheSame
 
 	^ initialNode key = finalNode key! !
 
-!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 7/6/2019 20:36:11'!
+!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/8/2019 19:04:02'!
+thereAreNoLocalVariableAssignments
+
+	^ methodNode
+		allParseNodesWithin: intervalToExtract
+		satisfy: [ :parseNode | parseNode isAssignmentToTemporary ]! !
+
+!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/8/2019 19:05:37'!
 thereAreNoReturnExpressions 
 
-	methodNode rawSourceRanges keysAndValuesDo: [ :parseNode :sourceRange |
-		parseNode isReturn
-			:: and: [ intervalToExtract rangeIncludes: sourceRange first ]
-			:: ifTrue: [ ^ false ] ].
-	^ true! !
+	^ methodNode
+		allParseNodesWithin: intervalToExtract
+		satisfy: [ :parseNode | parseNode isReturn ]! !
 
 !ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 7/9/2019 16:03:24'!
 trimmed: anInterval
@@ -577,10 +585,17 @@ expandRange: aSourceRange basedOn: sourceRangesOfChildNode
 			^ (aSourceRange first min: (intervals at: index - 1 ifAbsent: [ intervals last ]) first) to: aSourceRange last ] ].
 	^ (aSourceRange first min: intervals last first) to: aSourceRange last! !
 
-!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 19:54:22'!
+!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 18:33:04'!
 expandRanges: sourceRanges basedOn: allSourceRanges using: sourceCode
 
-	^ sourceRanges! !
+	| sourceRangesAsCollection |
+	sourceRangesAsCollection _ sourceRanges isInterval ifTrue: [ OrderedCollection with: sourceRanges ] ifFalse: [ sourceRanges ].
+	^ sourceRangesAsCollection collect: [ :sourceRange | self expandIfEnclosedWithParentheses: sourceRange on: sourceCode  ]! !
+
+!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 19:05:07'!
+isAssignmentToTemporary
+
+	^ false! !
 
 !Encoder methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 19:58:40'!
 completeSourceRangesBasedOn: sourceCode
@@ -616,6 +631,11 @@ expandRanges: aSourceRange basedOn: sourceRanges using: sourceCode
 		expandRange: (aSourceRange isInterval ifTrue: [ aSourceRange ] ifFalse: [ aSourceRange first ])
 		basedOn: (sourceRanges at: variable)! !
 
+!AssignmentNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 19:03:48'!
+isAssignmentToTemporary
+
+	^ self isAssignmentNode and: [ variable isTemp ]! !
+
 !MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 20:05:56'!
 expandRanges: aSourceRange basedOn: sourceRanges using: sourceCode
 
@@ -627,6 +647,22 @@ expandRanges: aSourceRange basedOn: sourceRanges using: sourceCode
 		expandRange: (aSourceRange isInterval ifTrue: [ aSourceRange ] ifFalse: [ aSourceRange first ])
 		basedOn: receiverExpandedRanges.
 	^ self expandIfEnclosedWithParentheses: expandedRangeWithReceiver on: sourceCode! !
+
+!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 19:02:28'!
+allParseNodesWithin: aSourceCodeInterval satisfy: aCondition
+
+	self completeSourceRanges keysAndValuesDo: [ :parseNode :sourceRanges |
+		| sourceRangesAsCollection |
+		sourceRangesAsCollection _ sourceRanges isInterval
+			ifTrue: [ OrderedCollection with: sourceRanges ] ifFalse: [ sourceRanges ].
+		
+		(aCondition value: parseNode) ifTrue: [
+			| matchedNode |
+			matchedNode _ sourceRangesAsCollection
+				anySatisfy: [ :sourceRange | aSourceCodeInterval rangeIncludes: sourceRange first ].
+			matchedNode ifTrue: [ ^ false ]
+		] ].
+	^ true! !
 
 !MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 20:00:55'!
 completeSourceRanges

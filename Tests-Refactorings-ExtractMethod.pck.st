@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3866] on 7 September 2019 at 7:28:00 pm'!
+'From Cuis 5.0 [latest update: #3866] on 8 September 2019 at 7:18:48 pm'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 12!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 13!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -98,7 +98,7 @@ selectorOfMethodToExtractCodeFrom
 
 	^ #mExtractMethodExample:! !
 
-!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 7/6/2019 19:24:17'!
+!ExtractMethodTest methodsFor: 'method and source code helpers' stamp: 'RNG 9/8/2019 18:40:40'!
 sourceCodeOfMethodToExtractCodeFrom
 
 	^ self selectorOfMethodToExtractCodeFrom, ' anArgument
@@ -109,6 +109,7 @@ sourceCodeOfMethodToExtractCodeFrom
 	self m1.
 	self m2: ''hey true''.
 	self m3: anArgument , ''^ 21''.
+	localVar _ Set with: ''hello''.
 	localVar := #($x $y $z) size and: [ (9) * 3 ].
 	^ localVar + ((4))'! !
 
@@ -406,3 +407,10 @@ test23CanNotExtractWithAnInvalidInterval
 	self
 		creationOnInterval: (10 to: 9)
 		failsWith: ExtractMethod noSelectionErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 9/8/2019 19:10:15'!
+test24ItIsNotPossibleToExtractAnIntervalIncludingATemporaryAssignmentExpression
+
+	self
+		creationOnInterval: (self intervalOfCode: 'localVar _ Set with: ''hello''')
+		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
