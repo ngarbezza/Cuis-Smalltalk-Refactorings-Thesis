@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3866] on 8 September 2019 at 8:57:41 pm'!
+'From Cuis 5.0 [latest update: #3866] on 10 September 2019 at 5:33:42 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 15!
+!provides: 'Refactorings-ExtractMethod' 1 16!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -259,9 +259,20 @@ saveUnarySelector: userAnswer
 
 	^ newSelector _ userAnswer asSymbol! !
 
-!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:04:17'!
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 17:26:45'!
+blockNodesEnclosingIntervalToExtract
+
+	| nodes |
+	nodes _ Set new.
+	methodToExtractCodeFrom methodNode completeSourceRangesDo: [ :parseNode :sourceRanges |
+		parseNode isBlockNode
+		:: and: [ self intervalToExtractIsCoveredByAnyOf: sourceRanges ]
+		:: ifTrue: [ nodes add: parseNode ] ].
+	^ nodes! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 21:12:42'!
 buildInitialSelectorAnswer: parseNodesToParameterize
-	"builds a selector with the shape of #m1: something m2: else"
+	"builds a selector with the shape of #m1 if unary, or #m1: something m2: else if it has args"
 
 	^ parseNodesToParameterize
 		ifEmpty: [ 'm1' ]
@@ -272,19 +283,31 @@ buildInitialSelectorAnswer: parseNodesToParameterize
 				currentKeyword _ 'm' , (parseNodesToParameterize indexOf: parseNode) asString , ': '.
 				partialSelector , currentKeyword, parseNode name , String newLineString ] ]! !
 
-!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:43:33'!
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 17:30:18'!
 definedInOuterScope: parseNode
 
-	self flag: #RNG. "this is not enough when extracting code inside a block that references block temps or args"
-	^ methodToExtractCodeFrom methodNode hasTemporaryOrArgumentNamed: parseNode name! !
+	^ self nodesThatAddVariablesToScope
+		anySatisfy: [ :node | node hasTemporaryOrArgumentNamed: parseNode name ]! !
 
-!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:40:11'!
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 17:26:57'!
+intervalToExtractIsCoveredByAnyOf: sourceRanges
+
+	^ sourceRanges anySatisfy: [ :sourceRange |
+		sourceRange first < intervalToExtract first
+			and: [ sourceRange last > intervalToExtract last ] ]! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 17:30:00'!
+nodesThatAddVariablesToScope
+
+	^ (Set with: methodToExtractCodeFrom methodNode) , self blockNodesEnclosingIntervalToExtract! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 17:15:34'!
 parseNodesToParameterize
 
 	| parseNodesFound |
 	parseNodesFound _ OrderedCollection new.
-	methodToExtractCodeFrom methodNode completeSourceRanges keysAndValuesDo: [ :parseNode :sourceRangeOrRanges |
-		(self shouldBeParameterized: parseNode appearingIn: sourceRangeOrRanges)
+	methodToExtractCodeFrom methodNode completeSourceRangesDo: [ :parseNode :sourceRanges |
+		(self shouldBeParameterized: parseNode appearingIn: sourceRanges)
 			ifTrue: [ parseNodesFound add: parseNode ]
 	].
 	^ parseNodesFound! !
@@ -310,14 +333,11 @@ selectorTokensOf: userAnswer
 	^ (userAnswer findTokens: ':') allButLast
 		collect: [ :tok | (tok findTokens: Character separators) last , ':' ]! !
 
-!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:42:11'!
-shouldBeParameterized: parseNode appearingIn: sourceRangeOrRanges
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 17:16:48'!
+shouldBeParameterized: parseNode appearingIn: sourceRanges
 
-	| parseNodeWithinIntervalToExtract |
-	parseNodeWithinIntervalToExtract _ sourceRangeOrRanges isInterval
-		ifTrue: [ intervalToExtract includes: sourceRangeOrRanges first ]
-		ifFalse: [ sourceRangeOrRanges anySatisfy: [ :sourceRange | intervalToExtract includes: sourceRange first ] ].
-	^ parseNodeWithinIntervalToExtract and: [ parseNode isTempOrArg ]
+	^ sourceRanges anySatisfy: [ :sourceRange | intervalToExtract includes: sourceRange first ]
+		:: and: [ parseNode isTempOrArg ]
 		:: and: [ self definedInOuterScope: parseNode ]! !
 
 !ExtractMethodApplier class methodsFor: 'pre-conditions' stamp: 'RNG 5/13/2019 02:06:39'!
@@ -484,11 +504,11 @@ intervalMatchesEndOfStatement
 
 	^ finalNodeAncestors last value last = intervalToExtract last! !
 
-!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 7/9/2019 15:59:28'!
+!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/8/2019 21:14:54'!
 isLeftSideOfAssignment
 
 	^ initialNodeAncestors size > 1
-		:: and: [ initialNodeAncestors second key isAssignmentNode]
+		:: and: [ initialNodeAncestors second key isAssignmentNode ]
 		:: and: [ initialNodeAncestors second key variable = initialNode key ]! !
 
 !ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 7/6/2019 20:40:51'!
@@ -594,6 +614,13 @@ fullName
 			].
 		]! !
 
+!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 17:12:27'!
+consolidateAsCollection: sourceRanges
+
+	^ sourceRanges isInterval
+		ifTrue: [ OrderedCollection with: sourceRanges ]
+		ifFalse: [ sourceRanges ]! !
+
 !ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 20:05:56'!
 expandIfEnclosedWithParentheses: sourceRange on: sourceCode
 
@@ -616,12 +643,11 @@ expandRange: aSourceRange basedOn: sourceRangesOfChildNode
 			^ (aSourceRange first min: (intervals at: index - 1 ifAbsent: [ intervals last ]) first) to: aSourceRange last ] ].
 	^ (aSourceRange first min: intervals last first) to: aSourceRange last! !
 
-!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 18:33:04'!
+!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 17:33:30'!
 expandRanges: sourceRanges basedOn: allSourceRanges using: sourceCode
 
-	| sourceRangesAsCollection |
-	sourceRangesAsCollection _ sourceRanges isInterval ifTrue: [ OrderedCollection with: sourceRanges ] ifFalse: [ sourceRanges ].
-	^ sourceRangesAsCollection collect: [ :sourceRange | self expandIfEnclosedWithParentheses: sourceRange on: sourceCode  ]! !
+	^ (self consolidateAsCollection: sourceRanges)
+		collect: [ :sourceRange | self expandIfEnclosedWithParentheses: sourceRange on: sourceCode ]! !
 
 !ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 19:05:07'!
 isAssignmentToTemporary
@@ -655,24 +681,35 @@ parseNodesPathAt: aPosition using: expandedSourceRanges ifAbsent: aBlockClosure
 		ifEmpty: aBlockClosure
 		ifNotEmpty: [ nodesWithRangeAtPosition ]! !
 
-!AssignmentNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 19:58:15'!
+!AssignmentNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 17:14:25'!
 expandRanges: aSourceRange basedOn: sourceRanges using: sourceCode
 
-	^ self
+	^ self consolidateAsCollection: (self
 		expandRange: (aSourceRange isInterval ifTrue: [ aSourceRange ] ifFalse: [ aSourceRange first ])
-		basedOn: (sourceRanges at: variable)! !
+		basedOn: (sourceRanges at: variable))! !
 
 !AssignmentNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 19:03:48'!
 isAssignmentToTemporary
 
 	^ self isAssignmentNode and: [ variable isTemp ]! !
 
+!BlockNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 17:13:25'!
+expandRanges: sourceRanges basedOn: allSourceRanges using: sourceCode
+	"the closure creation node already contains the source ranges including the [ ] and arguments declaration"
+
+	^ self consolidateAsCollection: (allSourceRanges at: closureCreationNode)! !
+
+!BlockNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 16:59:24'!
+hasTemporaryOrArgumentNamed: aName
+
+	^ (temporaries union: arguments) anySatisfy: [ :temp | temp isNamed: aName ]! !
+
 !VariableNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 20:46:04'!
 isNamed: aName
 
 	^ self name = aName! !
 
-!MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 20:05:56'!
+!MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 17:13:10'!
 expandRanges: aSourceRange basedOn: sourceRanges using: sourceCode
 
 	| receiverExpandedRanges expandedRangeWithReceiver |
@@ -682,21 +719,15 @@ expandRanges: aSourceRange basedOn: sourceRanges using: sourceCode
 	expandedRangeWithReceiver _ self
 		expandRange: (aSourceRange isInterval ifTrue: [ aSourceRange ] ifFalse: [ aSourceRange first ])
 		basedOn: receiverExpandedRanges.
-	^ self expandIfEnclosedWithParentheses: expandedRangeWithReceiver on: sourceCode! !
+	^ self consolidateAsCollection: (self expandIfEnclosedWithParentheses: expandedRangeWithReceiver on: sourceCode)! !
 
-!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 19:02:28'!
+!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 17:19:25'!
 allParseNodesWithin: aSourceCodeInterval satisfy: aCondition
 
-	self completeSourceRanges keysAndValuesDo: [ :parseNode :sourceRanges |
-		| sourceRangesAsCollection |
-		sourceRangesAsCollection _ sourceRanges isInterval
-			ifTrue: [ OrderedCollection with: sourceRanges ] ifFalse: [ sourceRanges ].
-		
+	self completeSourceRangesDo: [ :parseNode :sourceRanges |
 		(aCondition value: parseNode) ifTrue: [
-			| matchedNode |
-			matchedNode _ sourceRangesAsCollection
-				anySatisfy: [ :sourceRange | aSourceCodeInterval rangeIncludes: sourceRange first ].
-			matchedNode ifTrue: [ ^ false ]
+			sourceRanges anySatisfy: [ :sourceRange | aSourceCodeInterval rangeIncludes: sourceRange first ]
+				:: ifTrue: [ ^ false ]
 		] ].
 	^ true! !
 
@@ -705,6 +736,12 @@ completeSourceRanges
 	"Returns the 'expanded' version of the source ranges, for instance in message sends it also includes the receiver, and if there are parentheses they are included in the source range as well. Right now used for refactorings."
 
 	^ encoder completeSourceRangesBasedOn: self sourceText! !
+
+!MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 17:10:08'!
+completeSourceRangesDo: aBinaryBlock
+	"block has to receive parse node and collection of source ranges"
+
+	^ self completeSourceRanges keysAndValuesDo: aBinaryBlock! !
 
 !MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 20:46:33'!
 hasTemporaryOrArgumentNamed: aName
