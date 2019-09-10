@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3866] on 10 September 2019 at 5:33:42 pm'!
+'From Cuis 5.0 [latest update: #3866] on 10 September 2019 at 6:32:59 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 16!
+!provides: 'Refactorings-ExtractMethod' 1 17!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -230,13 +230,13 @@ createRefactoring
 		to: self buildNewMessage
 		categorizedAs: methodToExtractCodeFrom category! !
 
-!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 9/8/2019 20:07:03'!
+!ExtractMethodApplier methodsFor: 'refactoring - parameters request' stamp: 'RNG 9/10/2019 18:23:12'!
 requestRefactoringParameters
 
 	| parseNodesToParameterize initialAnswer userAnswer |
 	parseNodesToParameterize _ self parseNodesToParameterize.
 	initialAnswer _ self buildInitialSelectorAnswer: parseNodesToParameterize.
-	userAnswer _ self request: 'New method name:' initialAnswer: initialAnswer withBlanksTrimmed.
+	userAnswer _ self request: 'New method name:' initialAnswer: initialAnswer.
 
 	parseNodesToParameterize
 		ifEmpty: [ self saveUnarySelector: userAnswer ]
@@ -270,24 +270,41 @@ blockNodesEnclosingIntervalToExtract
 		:: ifTrue: [ nodes add: parseNode ] ].
 	^ nodes! !
 
-!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 21:12:42'!
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 18:31:16'!
 buildInitialSelectorAnswer: parseNodesToParameterize
 	"builds a selector with the shape of #m1 if unary, or #m1: something m2: else if it has args"
 
 	^ parseNodesToParameterize
-		ifEmpty: [ 'm1' ]
+		ifEmpty: [ self formatAsKeyword: 'm1' ]
 		ifNotEmpty: [ parseNodesToParameterize
 			inject: ''
 			into: [ :partialSelector :parseNode |
 				| currentKeyword |
 				currentKeyword _ 'm' , (parseNodesToParameterize indexOf: parseNode) asString , ': '.
-				partialSelector , currentKeyword, parseNode name , String newLineString ] ]! !
+				partialSelector
+				, (self formatAsKeyword: currentKeyword)
+				, (self formatAsMethodArgument: parseNode name)
+				, String newLineString ] ]! !
 
 !ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 17:30:18'!
 definedInOuterScope: parseNode
 
 	^ self nodesThatAddVariablesToScope
 		anySatisfy: [ :node | node hasTemporaryOrArgumentNamed: parseNode name ]! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 18:30:31'!
+formatAsKeyword: aKeyword
+
+	^ Text
+		string: aKeyword
+		attributes: (SHTextStylerST80 attributesFor: #patternKeyword)! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 18:31:37'!
+formatAsMethodArgument: aMethodArgumentName
+
+	^ Text
+		string: aMethodArgumentName
+		attributes: (SHTextStylerST80 attributesFor: #methodArg)! !
 
 !ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/10/2019 17:26:57'!
 intervalToExtractIsCoveredByAnyOf: sourceRanges
