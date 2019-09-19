@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3866] on 8 September 2019 at 7:18:48 pm'!
+'From Cuis 5.0 [latest update: #3866] on 19 September 2019 at 8:45:20 pm'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 13!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 14!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -414,3 +414,10 @@ test24ItIsNotPossibleToExtractAnIntervalIncludingATemporaryAssignmentExpression
 	self
 		creationOnInterval: (self intervalOfCode: 'localVar _ Set with: ''hello''')
 		failsWith: ExtractMethod selectedCodeInvalidForExtractErrorMessage! !
+
+!ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 9/10/2019 18:51:20'!
+test25NewUnarySelectorShouldNotContainInvalidCharacters
+
+	self
+		creationWithSelectorNamed: 'hola)' asSymbol
+		failsWith: ExtractMethodNewSelectorPrecondition invalidCharacterInsideNewSelectorErrorMessage! !

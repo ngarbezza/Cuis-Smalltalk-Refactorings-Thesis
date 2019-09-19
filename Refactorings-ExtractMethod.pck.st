@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3866] on 10 September 2019 at 6:32:59 pm'!
+'From Cuis 5.0 [latest update: #3866] on 19 September 2019 at 8:45:16 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 17!
+!provides: 'Refactorings-ExtractMethod' 1 18!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -335,11 +335,12 @@ saveBinaryOrKeywordSelector: userAnswer withArguments: parseNodesToParameterize
 	self saveMessageArgumentsForEach: parseNodesToParameterize using: userAnswer.
 	newSelector _ '' join: (self selectorTokensOf: userAnswer) :: asSymbol.! !
 
-!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/8/2019 20:38:10'!
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/19/2019 20:42:14'!
 saveMessageArgumentsForEach: parseNodesToParameterize using: userAnswer
 
 	| newSelectorKeywords |
-	newSelectorKeywords _ userAnswer keywords.
+	newSelectorKeywords _ self selectorTokensOf: userAnswer.
+	self validateRequiredParameters: newSelectorKeywords haveACorrespondingKeywordIn: parseNodesToParameterize.
 	parseNodesToParameterize withIndexDo: [ :parseNode :index |
 		newMessageArguments at: (newSelectorKeywords at: index) put: parseNode ]! !
 
@@ -356,6 +357,17 @@ shouldBeParameterized: parseNode appearingIn: sourceRanges
 	^ sourceRanges anySatisfy: [ :sourceRange | intervalToExtract includes: sourceRange first ]
 		:: and: [ parseNode isTempOrArg ]
 		:: and: [ self definedInOuterScope: parseNode ]! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/19/2019 20:43:42'!
+signalExtractMethodWithWrongNumberOfArgumentsError
+
+	^ ExtractMethod refactoringError: 'The number of arguments in the entered selector is not correct'! !
+
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/19/2019 20:43:42'!
+validateRequiredParameters: newSelectorKeywords haveACorrespondingKeywordIn: parseNodesToParameterize
+
+	newSelectorKeywords size = parseNodesToParameterize size
+		ifFalse: [ self signalExtractMethodWithWrongNumberOfArgumentsError ]! !
 
 !ExtractMethodApplier class methodsFor: 'pre-conditions' stamp: 'RNG 5/13/2019 02:06:39'!
 assertCanApplyRefactoringOn: aMethodToExtractCodeFrom at: anIntervalToExtract
@@ -375,13 +387,14 @@ for: anIntervalToExtract of: aMethodToExtractCodeFrom
 
 	^ self new initializeFor: trimmedIntervalToExtract of: aMethodToExtractCodeFrom! !
 
-!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating' stamp: 'RNG 6/2/2019 19:19:30'!
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating' stamp: 'RNG 9/10/2019 18:52:36'!
 value
 
 	self
 		assertNewSelectorIsNotEmpty;
 		assertNewSelectorDoesNotContainSeparators;
 		assertNewSelectorBeginsWithAValidCharacter;
+		assertNewSelectorContainsOnlyValidCharacters;
 		assertNewSelectorIsNotAlreadyDefinedInTheClass! !
 
 !ExtractMethodNewSelectorPrecondition methodsFor: 'initialization' stamp: 'RNG 4/18/2019 16:04:44'!
@@ -405,6 +418,11 @@ signalNewSelectorCanNotContainSeparatorsError
 
 	self refactoringError: self class newSelectorCanNotContainSeparatorsErrorMessage! !
 
+!ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 9/10/2019 18:53:55'!
+signalNewSelectorContainsInvalidCharactersError
+
+	self refactoringError: self class invalidCharacterInsideNewSelectorErrorMessage! !
+
 !ExtractMethodNewSelectorPrecondition methodsFor: 'exceptions' stamp: 'RNG 5/5/2019 12:22:40'!
 signalNewSelectorIsAlreadyDefinedInTheClassError
 
@@ -415,6 +433,12 @@ assertNewSelectorBeginsWithAValidCharacter
 
 	selectorToValidate first isValidStartOfIdentifiers 
 		ifFalse: [ self signalNewSelectorBeginsWithAnInvalidCharacter ]! !
+
+!ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 9/10/2019 19:10:00'!
+assertNewSelectorContainsOnlyValidCharacters
+
+	(selectorToValidate isValidSelector)
+		ifFalse: [ self signalNewSelectorContainsInvalidCharactersError ]! !
 
 !ExtractMethodNewSelectorPrecondition methodsFor: 'evaluating - private' stamp: 'RNG 4/18/2019 15:13:52'!
 assertNewSelectorDoesNotContainSeparators
@@ -432,6 +456,11 @@ assertNewSelectorIsNotAlreadyDefinedInTheClass
 assertNewSelectorIsNotEmpty
 
 	selectorToValidate ifEmpty: [ self signalNewSelectorCanNotBeEmptyError ]! !
+
+!ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 9/10/2019 18:51:15'!
+invalidCharacterInsideNewSelectorErrorMessage
+
+	^ 'New selector should only contain letters, numbers or _'! !
 
 !ExtractMethodNewSelectorPrecondition class methodsFor: 'error messages' stamp: 'RNG 6/2/2019 19:18:14'!
 invalidStartingCharacterOfNewSelectorErrorMessage
@@ -630,6 +659,12 @@ fullName
 				]
 			].
 		]! !
+
+!Symbol methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 19:09:10'!
+isValidSelector
+
+	^ (self isUnary and: [ self allSatisfy: [ :character | character isValidInIdentifiers ] ])
+		or: [ self isKeyword and: [ self keywords allSatisfy: [ :keywordString | keywordString allButLast asSymbol isValidSelector ] ] ]! !
 
 !ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 17:12:27'!
 consolidateAsCollection: sourceRanges
