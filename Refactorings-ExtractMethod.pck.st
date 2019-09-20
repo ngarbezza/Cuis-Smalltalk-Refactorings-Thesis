@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3866] on 19 September 2019 at 8:45:16 pm'!
+'From Cuis 5.0 [latest update: #3866] on 19 September 2019 at 9:36:45 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 18!
+!provides: 'Refactorings-ExtractMethod' 1 19!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -673,6 +673,11 @@ consolidateAsCollection: sourceRanges
 		ifTrue: [ OrderedCollection with: sourceRanges ]
 		ifFalse: [ sourceRanges ]! !
 
+!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/19/2019 21:23:19'!
+equivalentTo: aParseNode
+
+	^ false! !
+
 !ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 20:05:56'!
 expandIfEnclosedWithParentheses: sourceRange on: sourceCode
 
@@ -756,22 +761,50 @@ hasTemporaryOrArgumentNamed: aName
 
 	^ (temporaries union: arguments) anySatisfy: [ :temp | temp isNamed: aName ]! !
 
+!LiteralNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/19/2019 21:32:10'!
+equivalentTo: aParseNode
+
+	^ aParseNode isLiteralNode and: [ self key = aParseNode key ]! !
+
 !VariableNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/8/2019 20:46:04'!
 isNamed: aName
 
 	^ self name = aName! !
 
-!MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 17:13:10'!
+!MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/19/2019 21:31:18'!
+equivalentTo: aParseNode
+
+	self flag: #RNG. "complete definition by checking each argument"
+	^ aParseNode isMessageNode
+		:: and: [ self receiver equivalentTo: aParseNode ]
+		:: and: [ self selector = aParseNode selector ]
+		:: and: [ self arguments isEmpty ]! !
+
+!MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/19/2019 21:16:03'!
 expandRanges: aSourceRange basedOn: sourceRanges using: sourceCode
 
 	| receiverExpandedRanges expandedRangeWithReceiver |
 	receiverExpandedRanges _ self isCascade
 		ifTrue: [ self flag: #RNG . aSourceRange ] "fix source ranges for cascade messages"
-		ifFalse: [ receiver expandRanges: (sourceRanges at: receiver) basedOn: sourceRanges using: sourceCode ].
+		ifFalse: [ receiver expandRanges: (self receiverSourceRangesFrom: sourceRanges) basedOn: sourceRanges using: sourceCode ].
 	expandedRangeWithReceiver _ self
 		expandRange: (aSourceRange isInterval ifTrue: [ aSourceRange ] ifFalse: [ aSourceRange first ])
 		basedOn: receiverExpandedRanges.
 	^ self consolidateAsCollection: (self expandIfEnclosedWithParentheses: expandedRangeWithReceiver on: sourceCode)! !
+
+!MessageNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/19/2019 21:24:41'!
+receiverSourceRangesFrom: sourceRanges
+	"we can't just do #at: because sometimes what it is on the source ranges map
+	is not the exact same object than the receiver or the originalReceiver
+	(like when optimizations are made), so we look for an 'equivalent' one
+	(at least for using as a key in the source ranges)"
+
+	^ sourceRanges at: receiver ifAbsent: [
+		| parseNodeOfReceiver |
+		parseNodeOfReceiver _ sourceRanges keys detect: [ :parseNode |
+		(parseNode equivalentTo: receiver) or: [ parseNode equivalentTo: originalReceiver ] ].
+		sourceRanges at: parseNodeOfReceiver
+	]! !
 
 !MethodNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/10/2019 17:19:25'!
 allParseNodesWithin: aSourceCodeInterval satisfy: aCondition
