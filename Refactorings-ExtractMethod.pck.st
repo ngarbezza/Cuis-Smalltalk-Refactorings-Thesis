@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3880] on 28 September 2019 at 12:05:49 am'!
+'From Cuis 5.0 [latest update: #3880] on 28 September 2019 at 1:42:33 am'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 21!
+!provides: 'Refactorings-ExtractMethod' 1 22!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -531,12 +531,13 @@ passed
 			:: or: [ self startAndEndNodesShareAParentNode ]
 			:: or: [ self intervalMatchesBeginningOfStatement and: [ self intervalMatchesEndOfStatement ] ] ]! !
 
-!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/8/2019 18:57:55'!
-containsValidNodes   
+!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/28/2019 01:21:30'!
+containsValidNodes
 
 	^ self isNotLeftSideOfAssignment
 		:: and: [ self thereAreNoLocalVariableAssignments ]
-		:: and: [ self thereAreNoReturnExpressions ]! !
+		:: and: [ self thereAreNoReturnExpressions ]
+		:: and: [ self isNotATempDeclaration ]! !
 
 !ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/19/2019 22:16:05'!
 intervalCoversCompleteAstNodes 
@@ -567,6 +568,18 @@ isLeftSideOfAssignment
 	^ initialNodeAncestors size > 1
 		:: and: [ initialNodeAncestors second key isAssignmentNode ]
 		:: and: [ initialNodeAncestors second key variable = initialNode key ]! !
+
+!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/28/2019 01:41:03'!
+isNotATempDeclaration
+
+	| startOfFirstOccurrence sourceRanges tempKey allTempSourceRanges |
+	initialNode key isTemp ifFalse: [ ^ true ].
+	sourceRanges _ methodNode rawSourceRanges.
+	tempKey _ sourceRanges keys detect: [ :parseNode | parseNode isTemp and: [ parseNode equivalentTo: initialNode key ] ].
+	allTempSourceRanges _ sourceRanges at: tempKey.
+	startOfFirstOccurrence _ allTempSourceRanges isInterval
+		ifTrue: [ allTempSourceRanges first ] ifFalse: [ allTempSourceRanges first first ].
+	^ startOfFirstOccurrence ~= intervalToExtract first! !
 
 !ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 7/6/2019 20:40:51'!
 isNotLeftSideOfAssignment 
@@ -685,10 +698,10 @@ consolidateAsCollection: sourceRanges
 		ifTrue: [ OrderedCollection with: sourceRanges ]
 		ifFalse: [ sourceRanges ]! !
 
-!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/19/2019 21:23:19'!
+!ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/28/2019 01:40:07'!
 equivalentTo: aParseNode
 
-	^ false! !
+	^ aParseNode isTemp and: [ self key = aParseNode key ]! !
 
 !ParseNode methodsFor: '*Refactorings-ExtractMethod' stamp: 'RNG 9/7/2019 20:05:56'!
 expandIfEnclosedWithParentheses: sourceRange on: sourceCode
