@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3866] on 19 September 2019 at 9:36:45 pm'!
+'From Cuis 5.0 [latest update: #3880] on 28 September 2019 at 12:05:49 am'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 19!
+!provides: 'Refactorings-ExtractMethod' 1 21!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -107,11 +107,11 @@ newMessageString
 
 	^ newMessage fullName! !
 
-!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 18:59:07'!
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 9/19/2019 22:04:14'!
 newMethodSourceCode
 
 	^ self newMessageString
-	, String lfString , String lfString , String tab
+	, self startingMethodIdentation
 	, self returnCharacterIfNeeded
 	, extractedSourceCode! !
 
@@ -126,6 +126,11 @@ returnCharacterIfNeeded
 sourceClass
 
 	^ existingMethod methodClass! !
+
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 9/19/2019 22:04:09'!
+startingMethodIdentation
+
+	^ String lfString , String lfString , String tab! !
 
 !ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 20:29:44'!
 updatedSourceCodeOfExistingMethod
@@ -335,12 +340,12 @@ saveBinaryOrKeywordSelector: userAnswer withArguments: parseNodesToParameterize
 	self saveMessageArgumentsForEach: parseNodesToParameterize using: userAnswer.
 	newSelector _ '' join: (self selectorTokensOf: userAnswer) :: asSymbol.! !
 
-!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/19/2019 20:42:14'!
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/19/2019 22:11:12'!
 saveMessageArgumentsForEach: parseNodesToParameterize using: userAnswer
 
 	| newSelectorKeywords |
 	newSelectorKeywords _ self selectorTokensOf: userAnswer.
-	self validateRequiredParameters: newSelectorKeywords haveACorrespondingKeywordIn: parseNodesToParameterize.
+	self validateRequiredParameters: parseNodesToParameterize haveACorrespondingKeywordIn: newSelectorKeywords.
 	parseNodesToParameterize withIndexDo: [ :parseNode :index |
 		newMessageArguments at: (newSelectorKeywords at: index) put: parseNode ]! !
 
@@ -363,8 +368,8 @@ signalExtractMethodWithWrongNumberOfArgumentsError
 
 	^ ExtractMethod refactoringError: 'The number of arguments in the entered selector is not correct'! !
 
-!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/19/2019 20:43:42'!
-validateRequiredParameters: newSelectorKeywords haveACorrespondingKeywordIn: parseNodesToParameterize
+!ExtractMethodApplier methodsFor: 'private - parameterizing' stamp: 'RNG 9/19/2019 22:11:43'!
+validateRequiredParameters: parseNodesToParameterize haveACorrespondingKeywordIn: newSelectorKeywords
 
 	newSelectorKeywords size = parseNodesToParameterize size
 		ifFalse: [ self signalExtractMethodWithWrongNumberOfArgumentsError ]! !
@@ -533,12 +538,10 @@ containsValidNodes
 		:: and: [ self thereAreNoLocalVariableAssignments ]
 		:: and: [ self thereAreNoReturnExpressions ]! !
 
-!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 7/9/2019 16:07:20'!
+!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/19/2019 22:16:05'!
 intervalCoversCompleteAstNodes 
 
-	| trimmedInterval |
-	trimmedInterval _ self trimmed: ((initialNode value first min: finalNode value first) to: finalNode value last).
-	^ trimmedInterval = intervalToExtract! !
+	^ (self trimmed: (initialNode value first to: finalNode value last)) = intervalToExtract! !
 
 !ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 7/9/2019 15:59:28'!
 intervalMatchesBeginningOfStatement 
@@ -549,6 +552,14 @@ intervalMatchesBeginningOfStatement
 intervalMatchesEndOfStatement
 
 	^ finalNodeAncestors last value last = intervalToExtract last! !
+
+!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/28/2019 00:05:30'!
+isDeclaredWithinIntervalToExtract: aVariableNode
+
+	^ methodNode
+		allParseNodesWithin: intervalToExtract
+		satisfy: [ :parseNode | parseNode isBlockNode
+			and: [ parseNode temporaries includes: aVariableNode ] ]! !
 
 !ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/8/2019 21:14:54'!
 isLeftSideOfAssignment
@@ -584,12 +595,13 @@ startAndEndParseNodesAreTheSame
 
 	^ initialNode key = finalNode key! !
 
-!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/8/2019 19:04:02'!
+!ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/28/2019 00:04:36'!
 thereAreNoLocalVariableAssignments
 
 	^ methodNode
 		allParseNodesWithin: intervalToExtract
-		satisfy: [ :parseNode | parseNode isAssignmentToTemporary ]! !
+		satisfy: [ :parseNode | parseNode isAssignmentToTemporary
+			and: [ self isDeclaredWithinIntervalToExtract: parseNode variable ] ]! !
 
 !ExtractMethodExpressionValidation methodsFor: 'validation - private' stamp: 'RNG 9/8/2019 19:05:37'!
 thereAreNoReturnExpressions 
@@ -603,11 +615,11 @@ trimmed: anInterval
 
 	^ ExtractMethodIntervalTrimmer trim: anInterval locatedIn: sourceCode! !
 
-!ExtractMethodExpressionValidation methodsFor: 'initialization' stamp: 'RNG 7/9/2019 16:05:48'!
-initializeFor: anIntervalToExtract of: aMethod
+!ExtractMethodExpressionValidation methodsFor: 'initialization' stamp: 'RNG 9/19/2019 22:14:50'!
+initializeFor: anIntervalToExtract of: aMethodUnderValidation
 
 	intervalToExtract _ anIntervalToExtract.
-	method _ aMethod! !
+	method _ aMethodUnderValidation! !
 
 !ExtractMethodExpressionValidation class methodsFor: 'instance creation' stamp: 'RNG 7/6/2019 20:07:49'!
 for: anIntervalToExtract of: aMethod
