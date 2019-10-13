@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3880] on 28 September 2019 at 1:42:33 am'!
+'From Cuis 5.0 [latest update: #3880] on 13 October 2019 at 7:03:02 pm'!
 'Description Extract Method refactoring.'!
-!provides: 'Refactorings-ExtractMethod' 1 22!
+!provides: 'Refactorings-ExtractMethod' 1 23!
 SystemOrganization addCategory: #'Refactorings-ExtractMethod'!
 
 
@@ -102,6 +102,16 @@ defineExtractedMethod
 		compile: self newMethodSourceCode
 		classified: categoryOfNewSelector! !
 
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 10/13/2019 19:00:16'!
+callingExpression
+
+	| expression |
+	expression _ 'self ', self newMessageString.
+	
+	^ self shouldBeEnclosedWithParens
+		ifTrue: [ '(' , expression , ')' ]
+		ifFalse: [ expression ]! !
+
 !ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 19:57:48'!
 newMessageString
 
@@ -122,6 +132,24 @@ returnCharacterIfNeeded
 	parseNode _ Parser parse: extractedSourceCode class: self sourceClass noPattern: true.
 	^ parseNode block statements size = 1 ifTrue: [ '^ ' ] ifFalse: [ '' ]! !
 
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 10/13/2019 18:58:51'!
+shouldBeEnclosedWithParens
+
+	| initialNode finalNode parseNodesInCommon methodNode initialNodeAncestors finalNodeAncestors insideMessageNodeExpressions |
+
+	methodNode _ existingMethod methodNode.
+	initialNodeAncestors  _ methodNode parseNodesPathAt: intervalToExtract first ifAbsent: [ ^ false].
+	finalNodeAncestors _ methodNode parseNodesPathAt: intervalToExtract last ifAbsent: [ ^ false ].
+	parseNodesInCommon _ initialNodeAncestors intersection: finalNodeAncestors.
+
+	initialNode _ (parseNodesInCommon at: 1 ifAbsent: [ ^ false ]) key.
+	finalNode _ (parseNodesInCommon at: 2 ifAbsent: [ ^ false ]) key.
+	insideMessageNodeExpressions _ initialNode isMessageNode and: [ finalNode isMessageNode ].
+	
+	^ insideMessageNodeExpressions
+		and: [ initialNode precedence < newMessage selector precedence ]
+		:: and: [ initialNode precedence <= finalNode precedence ]! !
+
 !ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 20:29:44'!
 sourceClass
 
@@ -132,13 +160,13 @@ startingMethodIdentation
 
 	^ String lfString , String lfString , String tab! !
 
-!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 6/23/2019 20:29:44'!
+!ExtractMethod methodsFor: 'private - source code' stamp: 'RNG 10/13/2019 18:26:11'!
 updatedSourceCodeOfExistingMethod
 
 	^ existingMethod sourceCode
 		copyReplaceFrom: intervalToExtract first
 		to: intervalToExtract last
-		with: 'self ', self newMessageString! !
+		with: self callingExpression! !
 
 !ExtractMethod class methodsFor: 'instance creation' stamp: 'RNG 6/23/2019 18:24:36'!
 fromInterval: anIntervalToExtract of: aMethodToExtractCodeFrom to: newMessage categorizedAs: aCategory 

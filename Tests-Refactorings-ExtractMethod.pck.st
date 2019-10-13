@@ -1,6 +1,6 @@
-'From Cuis 5.0 [latest update: #3880] on 28 September 2019 at 1:42:35 am'!
+'From Cuis 5.0 [latest update: #3880] on 13 October 2019 at 7:03:05 pm'!
 'Description Tests for the Extract Method refactoring.'!
-!provides: 'Tests-Refactorings-ExtractMethod' 1 17!
+!provides: 'Tests-Refactorings-ExtractMethod' 1 18!
 !requires: 'Refactorings-ExtractMethod' 1 0 nil!
 !requires: 'BaseImageTests' 1 149 nil!
 SystemOrganization addCategory: #'Tests-Refactorings-ExtractMethod'!
@@ -304,6 +304,21 @@ test27ItIsPossibleToExtractExpressionsWithOptimizedSelectors
 
 	self
 		extract: codeToExtract from: originalCode named: (Message selector: #m2)
+		defines: newMethodCode andUpdates: updatedCode! !
+
+!ExtractMethodTest methodsFor: 'tests - successful' stamp: 'RNG 10/13/2019 18:25:35'!
+test29ExtractingABinaryExpressionToAKeywordMessageIntroducesParenthesesToNotBreakOriginalPrecedence
+
+	| codeToExtract newMethodCode originalCode updatedCode |
+	codeToExtract _ '2 + arg'.
+	originalCode _ 'm1: arg ^ ' , codeToExtract , ' * 3'.
+	newMethodCode _ 'm2: arg
+
+	^ ' , codeToExtract.
+	updatedCode _ 'm1: arg ^ (self m2: arg) * 3'.
+
+	self
+		extract: codeToExtract from: originalCode named: (Message selector: #m2: arguments: #('arg'))
 		defines: newMethodCode andUpdates: updatedCode! !
 
 !ExtractMethodTest methodsFor: 'tests - validations' stamp: 'RNG 9/22/2019 22:29:34'!
